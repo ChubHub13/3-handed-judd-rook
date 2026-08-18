@@ -1,22 +1,25 @@
 # 3-Handed Judd Rook
 
-This version uses an authoritative Node.js server. The server is the source of truth for rooms, player seats, cards, bids, trump, discards, turns, trick winners, and scoring.
+Three-player Judd Rook for exactly Daryl, Cristi, and Cindy.
 
-## Files
+## Hosting
 
-- `index.html` - browser client
-- `server.js` - authoritative room/game server
+- Node.js 18+.
+- Build command: `npm install`
+- Start command: `node server.js`
 
-## Run locally
+## Multiplayer model
 
-```bash
-node server.js
-```
+There are no game rooms. The server maintains one shared game for the three named players.
 
-Then open `http://localhost:8080/` in three browser tabs/devices.
+- Daryl, Cristi, and Cindy each choose their own name when opening the app.
+- If one or more players are not connected when Daryl starts the game, the missing seats become bots.
+- If a live player disconnects during a hand, the server continues that seat with a bot.
+- The server owns cards, bidding, trump, discards, turns, trick results, scoring, and chat.
+- The completed trick remains visible for 5 seconds before the next trick begins.
+- Trump selection opens automatically for the live player immediately after that player wins the bid.
+- Bot bidding uses the original three-player bidding model from Rook Solitaire, including its 150-170/175 range and the 200 full-coverage exception.
 
-The host creates a room and shares the `ROOK-XXXX` code. Other players join with that code. Only three seats exist. Any missing seat becomes a bot when the host starts, and a disconnected live seat is replaced by a bot while the game is in progress.
+## Important
 
-## GitHub hosting note
-
-GitHub can store these files, but GitHub Pages cannot run `server.js`. The Node server needs to be deployed to a service that runs Node.js, and the three players should open the client from that deployed server URL.
+The game state is held in server memory. A server restart resets the current game.
