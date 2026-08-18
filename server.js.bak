@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.1';
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
@@ -434,47 +434,10 @@ function bidderSideSuitToAvoidAfterDefenderWin(seat) {
   if (!suit || suit === game.trump) return null;
   return suit;
 }
-function opponentsVoidInSuit(leadSuit, seat) {
-  if (!leadSuit) return false;
-  return [0, 1, 2].some(opponent =>
-    opponent !== seat
-    && !game.hands[opponent].some(card => effectiveSuit(card) === leadSuit)
-  );
-}
-
-function opponentCanTrumpLead(seat, card) {
-  if (!card || !game.trump || game.trump === 'none') return false;
-  const leadSuit = effectiveSuit(card);
-  if (!leadSuit || leadSuit === game.trump) return false;
-  return [0, 1, 2].some(opponent => {
-    if (opponent === seat) return false;
-    if (game.hands[opponent].some(other => effectiveSuit(other) === leadSuit)) return false;
-    return game.hands[opponent].some(other => effectiveSuit(other) === game.trump);
-  });
-}
-
-function bidderTrumpReserveCount(seat) {
-  if (seat !== game.highBidder || game.trump === 'none' || !game.trump) return 0;
-  return game.hands[seat].filter(card => effectiveSuit(card) === game.trump).length;
-}
-
-function lastTrickIsApproaching() {
-  return game.hands.every(hand => hand.length <= 1);
-}
-
 function chooseLeadCard(seat, legal) {
   const isDefender = defenderAgainstBidder(seat);
   const avoidTrumpLead = isDefender;
   let leadPool = [...legal];
-
-  // A bidding-side bot should pull trump first when it can. This reduces
-  // the defenders' ability to trump a later side-suit lead.
-  if (!isDefender && game.trump && game.trump !== 'none') {
-    const trumps = leadPool.filter(card => effectiveSuit(card) === game.trump);
-    if (trumps.length) {
-      return [...trumps].sort((a, b) => cardRank(b) - cardRank(a))[0];
-    }
-  }
 
   // Never lead the Rook unless it is genuinely the highest card under the chosen rules.
   const rook = leadPool.find(card => card.rook);
@@ -507,13 +470,6 @@ function chooseLeadCard(seat, legal) {
   const safeLeads = leadPool.filter(card => !isGuardedFourteen(card) && !wouldStrandFourteen(seat, card));
   if (safeLeads.length) leadPool = safeLeads;
 
-  // Do not lead a secondary-suit 1 when a defender is void in that suit and
-  // can trump it. The 1 is too valuable to donate into a short suit.
-  const protectedAceLeads = leadPool.filter(card =>
-    !(!card.rook && card.value === 1 && opponentCanTrumpLead(seat, card))
-  );
-  if (protectedAceLeads.length) leadPool = protectedAceLeads;
-
   const sureWinners = leadPool.filter(card => !opponentCanBeatLead(seat, card));
   if (sureWinners.length) {
     // Favor counters on a genuinely secure winner, but don't sacrifice a guarded 14.
@@ -524,16 +480,6 @@ function chooseLeadCard(seat, legal) {
     const trumps = leadPool.filter(card => effectiveSuit(card) === game.trump);
     const opposingTrump = [0,1,2].some(opponent => opponent !== seat && game.hands[opponent].some(card => effectiveSuit(card) === game.trump));
     if (trumps.length >= 2 && opposingTrump) return [...trumps].sort((a,b) => cardRank(b) - cardRank(a))[0];
-  }
-
-  // Preserve at least one trump for the final trick when the bot owns the bid.
-  if (seat === game.highBidder && game.trump && game.trump !== 'none' && !lastTrickIsApproaching()) {
-    const trumps = leadPool.filter(card => effectiveSuit(card) === game.trump);
-    const reserve = bidderTrumpReserveCount(seat);
-    if (reserve > 1) {
-      const nonTrumpLeads = leadPool.filter(card => effectiveSuit(card) !== game.trump);
-      if (nonTrumpLeads.length) leadPool = nonTrumpLeads;
-    }
   }
 
   const nonCounters = leadPool.filter(card =>
@@ -550,30 +496,6 @@ function chooseLeadCard(seat, legal) {
 function chooseBotCard(seat) {
   let legal = legalCards(seat);
   if (!legal.length) return null;
-
-  const currentWinner = game.trick.length ? trickWinner(game.trick) : null;
-  const winningPlay = currentWinner === null ? null : game.trick.find(play => play.seat === currentWinner);
-  const isLastToPlay = game.trick.length === 2;
-
-  // If a non-bidder currently owns the trick and this bot is last to play,
-  // feed point cards when possible instead of wasting a winner.
-  if (isLastToPlay && currentWinner !== null && currentWinner !== game.highBidder) {
-    const pointThrow = bestPointThrow(legal);
-    if (pointThrow && (!winningPlay || !beats(pointThrow, winningPlay.card, effectiveSuit(game.trick[0].card)))) {
-      return pointThrow;
-    }
-  }
-
-  // When the bot owns the bid, hold onto a trump whenever one remains and
-  // the final trick has not arrived. The Rook is worth 20 and the kitty
-  // follows the final-trick winner.
-  if (seat === game.highBidder && game.trump && game.trump !== 'none' && !isLastToPlay) {
-    const trumps = legal.filter(card => effectiveSuit(card) === game.trump);
-    if (trumps.length && game.hands[seat].length > 1) {
-      const nonTrumpLegal = legal.filter(card => effectiveSuit(card) !== game.trump);
-      if (nonTrumpLegal.length) legal = nonTrumpLegal;
-    }
-  }
 
   // Preserve the solitaire safeguards before taking any trick-winning line.
   if (!game.trick.length) return chooseLeadCard(seat, legal);
@@ -603,10 +525,10 @@ function chooseBotCard(seat) {
   const trumpPullDiscard = chooseTrumpPullDiscard(seat, legal);
   if (trumpPullDiscard) return trumpPullDiscard;
 
-  const trickWinnerSeat = trickWinner(game.trick);
-  const trickWinningPlay = game.trick.find(play => play.seat === trickWinnerSeat);
+  const currentWinner = trickWinner(game.trick);
+  const winningPlay = game.trick.find(play => play.seat === currentWinner);
   const leadSuit = effectiveSuit(game.trick[0].card);
-  const winningCards = legal.filter(card => beats(card, trickWinningPlay.card, leadSuit));
+  const winningCards = legal.filter(card => beats(card, winningPlay.card, leadSuit));
 
   if (winningCards.length) {
     const secure = winningCards.filter(card => cardWinLooksSecure(seat, card, leadSuit));
@@ -616,11 +538,11 @@ function chooseBotCard(seat) {
     if (game.trick.length === 2) return lowestWinningCard(winningCards);
   }
 
-  const sameSideWinning = trickWinnerSeat === seat;
+  const sameSideWinning = currentWinner === seat;
   if (sameSideWinning) {
-    const nonOvertaking = legal.filter(card => !beats(card, trickWinningPlay.card, leadSuit));
+    const nonOvertaking = legal.filter(card => !beats(card, winningPlay.card, leadSuit));
     const safePool = nonOvertaking.length ? nonOvertaking : legal;
-    const secure = cardWinLooksSecure(seat, trickWinningPlay.card, leadSuit);
+    const secure = cardWinLooksSecure(seat, winningPlay.card, leadSuit);
     if (secure) {
       const pointThrow = bestPointThrow(safePool);
       if (pointThrow) return pointThrow;
@@ -681,13 +603,13 @@ function finishBidding() {
   game.prompt = `${game.seats[game.highBidder].name} wins the bid at ${game.highBid}.`;
   if (game.seats[game.highBidder].bot) {
     const bidder = game.highBidder;
-    const combined = [...game.hands[bidder], ...game.kitty];
-    const trump = chooseBestTrump(combined);
-    const discards = chooseBotDiscards(combined, trump, kittySize());
-    const discardIds = new Set(discards.map(card => card.id));
+    const trump = chooseBestTrump(game.hands[bidder]);
+    const discards = chooseBotDiscards([...game.hands[bidder], ...game.kitty], trump, kittySize());
     game.trump = trump;
-    game.hands[bidder] = combined.filter(card => !discardIds.has(card.id));
-    game.kitty = combined.filter(card => discardIds.has(card.id));
+    const discardIds = new Set(discards.map(card => card.id));
+    game.hands[bidder] = [...game.hands[bidder], ...game.kitty].filter(card => !discardIds.has(card.id));
+    game.kitty = [...game.hands[bidder], ...game.kitty].filter(card => discardIds.has(card.id));
+    game.hands[bidder] = game.hands[bidder].slice(0, handSize());
     sortHand(game.hands[bidder]);
     startPlaying();
   }
@@ -801,12 +723,8 @@ function chooseTrump(seat, trump) {
   if (game.phase !== 'pickup' || game.highBidder !== seat || !SUITS.includes(trump)) return false;
   game.trump = trump;
   if (game.seats[seat].bot) return false;
-  game.hands[seat] = [...game.hands[seat], ...game.kitty];
-  game.kitty = [];
-  game.selectedDiscards = [];
-  sortHand(game.hands[seat]);
   game.phase = 'discard';
-  game.prompt = `Choose ${kittySize()} cards to return to the kitty.`;
+  game.prompt = `Return ${kittySize()} cards to the kitty.`;
   return true;
 }
 function applyBotDiscard(seat) {
@@ -944,7 +862,7 @@ async function api(req, res) {
         case 'discard':
           if (game.phase !== 'discard' || game.highBidder !== seat) throw new Error('It is not time to return the kitty.');
           if (!Array.isArray(data.cardIds) || data.cardIds.length !== kittySize()) throw new Error(`Return exactly ${kittySize()} cards.`);
-          { const ids = new Set(data.cardIds); const combined = [...game.hands[seat]]; if ([...ids].some(id => !combined.some(c => c.id === id))) throw new Error('Invalid card selection.'); game.hands[seat] = combined.filter(c => !ids.has(c.id)); game.kitty = combined.filter(c => ids.has(c.id)); game.selectedDiscards = []; sortHand(game.hands[seat]); startPlaying(); ok = true; } break;
+          { const ids = new Set(data.cardIds); const combined = [...game.hands[seat], ...game.kitty]; if ([...ids].some(id => !combined.some(c => c.id === id))) throw new Error('Invalid card selection.'); game.hands[seat] = combined.filter(c => !ids.has(c.id)); game.kitty = combined.filter(c => ids.has(c.id)); game.selectedDiscards = []; sortHand(game.hands[seat]); startPlaying(); ok = true; } break;
         case 'play':
           ok = playCard(seat, String(data.cardId || '')); if (!ok) throw new Error('That card cannot be played.'); break;
         case 'nextHand':
