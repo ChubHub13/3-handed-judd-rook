@@ -8,7 +8,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const PLAYER_TIMEOUT_MS = 7000;
-const TRICK_REVEAL_MS = 5000;
+const TRICK_REVEAL_MS = 3000;
 const WIN_SCORE = 1000;
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -52,7 +52,9 @@ const game = {
   prompt: 'Choose your player name to join.',
   winner: null,
   botTimer: null,
-  handPoints: [0, 0, 0]
+  handPoints: [0, 0, 0],
+  bidderVoidSuits: new Set(),
+  bidderShownSuits: new Set()
 };
 
 function makeId(prefix = '') { return prefix + crypto.randomBytes(12).toString('hex'); }
@@ -256,16 +258,299 @@ function trickWinner(trick) {
   for (let i = 1; i < trick.length; i++) if (beats(trick[i].card, best.card, leadSuit)) best = trick[i];
   return best.seat;
 }
-function chooseBotCard(seat) {
-  const legal = legalCards(seat);
-  if (!legal.length) return null;
-  if (!game.trick.length) {
-    return [...legal].sort((a, b) => (cardPoints(b) - cardPoints(a)) || (cardRank(b) - cardRank(a)))[0];
+function cardHasBeenPlayed(suit, value) {
+  return game.captured.flat().concat(game.trick.map(play => play.card)).some(card =>
+    !card.rook && card.suit === suit && card.value === value
+  );
+}
+function isGuardedFourteen(card) {
+  return !card.rook && card.value === 14 && !cardHasBeenPlayed(card.suit, 1);
+}
+function wouldStrandFourteen(seat, card) {
+  if (card.rook || !card.suit || card.value === 14) return false;
+  if (cardHasBeenPlayed(card.suit, 1)) return false;
+  const remaining = game.hands[seat].filter(other =>
+    other.id !== card.id && !other.rook && other.suit === card.suit
+  );
+  return remaining.length === 1 && remaining[0].value === 14;
+}
+function bidderIsKnownVoidIn(suit) {
+  if (!game.bidderVoidSuits) game.bidderVoidSuits = new Set();
+  return Boolean(suit) && game.bidderVoidSuits.has(suit);
+}
+function bidderHasShownSuit(suit) {
+  if (!game.bidderShownSuits) game.bidderShownSuits = new Set();
+  return Boolean(suit) && game.bidderShownSuits.has(suit);
+}
+function defenderAgainstBidder(seat) {
+  return game.highBidder !== null && seat !== game.highBidder;
+}
+function opponentCanBeatLead(seat, card) {
+  const leadSuit = effectiveSuit(card);
+  return [0,1,2].some(opponent => {
+    if (opponent === seat) return false;
+    const hand = game.hands[opponent] || [];
+    const followers = hand.filter(candidate => effectiveSuit(candidate) === leadSuit);
+    const legal = followers.length ? followers : hand;
+    return legal.some(candidate => beats(candidate, card, leadSuit));
+  });
+}
+function sideSuitKeepScore(seat, suit) {
+  const cards = game.hands[seat].filter(card => !card.rook && card.suit === suit);
+  if (!cards.length) return -999;
+  let score = cards.length * 2;
+  if (cards.some(card => card.value === 1)) score += 55;
+  if (cards.some(card => card.value === 14)) score += cardHasBeenPlayed(suit, 1) ? 26 : 13;
+  if (cards.some(card => card.value === 13)) score += 11;
+  if (cards.some(card => card.value === 12)) score += 7;
+  score += cards.reduce((sum, card) => sum + cardPoints(card) * 0.18, 0);
+  if (
+    defenderAgainstBidder(seat) &&
+    suit !== game.trump &&
+    bidderHasShownSuit(suit) &&
+    (cards.length >= 2 || cards.some(card => card.value === 1 || card.value >= 12))
+  ) score += 80;
+  return score;
+}
+function lowestSafeDiscard(cards, seat = null) {
+  let pool = [...cards];
+  if (seat !== null) {
+    const withoutStranding14 = pool.filter(card => !wouldStrandFourteen(seat, card));
+    if (withoutStranding14.length) pool = withoutStranding14;
   }
-  const winnerPlay = game.trick.find(play => play.seat === trickWinner(game.trick));
-  const winning = legal.filter(card => beats(card, winnerPlay.card, effectiveSuit(game.trick[0].card)));
-  if (winning.length) return winning.sort((a, b) => cardPoints(a) - cardPoints(b) || cardRank(a) - cardRank(b))[0];
-  return legal.sort((a, b) => cardPoints(a) - cardPoints(b) || cardRank(a) - cardRank(b))[0];
+  const keepValue = card => {
+    if (card.rook) return 22;
+    if (card.value === 1) return 100;
+    if (card.value === 14) return 88;
+    if (card.value === 13) return 34;
+    if (card.value === 12) return 18;
+    return 0;
+  };
+  return pool.sort((a, b) =>
+    keepValue(a) - keepValue(b) || cardPoints(a) - cardPoints(b) || cardRank(a) - cardRank(b)
+  )[0] || null;
+}
+function cardWinLooksSecure(seat, winningCard, leadSuit) {
+  for (const next of [0,1,2]) {
+    if (next === seat) continue;
+    const hand = game.hands[next];
+    const followers = hand.filter(card => effectiveSuit(card) === leadSuit);
+    const choices = followers.length ? followers : hand;
+    if (choices.some(card => beats(card, winningCard, leadSuit))) return false;
+  }
+  return true;
+}
+function isTenCounter(card) { return !card.rook && card.value === 10; }
+function isThrowablePointCard(card) { return Boolean(card && (card.rook || card.value === 10 || card.value === 5)); }
+function bestPointThrow(cards) {
+  const safeCards = cards.filter(card => isThrowablePointCard(card));
+  if (!safeCards.length) return null;
+  const priority = card => card.rook ? 5 : card.value === 10 ? 4 : card.value === 5 ? 3 : 1;
+  return [...safeCards].sort((a,b) => priority(b) - priority(a) || cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
+}
+function chooseRookCapture(seat, legal) {
+  if (!game.trick.length || !game.trick.some(play => play.card.rook)) return null;
+  const currentWinner = trickWinner(game.trick);
+  if (currentWinner === seat) return null;
+  const leadSuit = effectiveSuit(game.trick[0].card);
+  const winningPlay = game.trick.find(play => play.seat === currentWinner);
+  const winningCards = legal.filter(card => beats(card, winningPlay.card, leadSuit));
+  if (!winningCards.length) return null;
+  const winningOnes = winningCards.filter(card => !card.rook && card.value === 1);
+  if (winningOnes.length) return lowestWinningCard(winningOnes);
+  if (game.trump !== 'none') {
+    const winningTrumps = winningCards.filter(card => effectiveSuit(card) === game.trump);
+    if (winningTrumps.length) return lowestWinningCard(winningTrumps);
+  }
+  return lowestWinningCard(winningCards);
+}
+function lowestWinningCard(cards) {
+  return [...cards].sort((a,b) => Number(effectiveSuit(a) === game.trump) - Number(effectiveSuit(b) === game.trump) || cardRank(a) - cardRank(b))[0] || null;
+}
+function chooseTrumpPullDiscard(seat, legal) {
+  if (!game.trick.length || !game.trump || game.trump === 'none' || !defenderAgainstBidder(seat) ||
+      game.trick[0].seat !== game.highBidder || effectiveSuit(game.trick[0].card) !== game.trump) return null;
+  if (legal.some(card => effectiveSuit(card) === game.trump)) return null;
+  const sideCards = legal.filter(card => effectiveSuit(card) !== game.trump);
+  if (!sideCards.length) return null;
+  const suits = [...new Set(sideCards.map(card => effectiveSuit(card)))];
+  if (!suits.length) return null;
+  const ranked = [...suits].sort((a,b) => sideSuitKeepScore(seat,a) - sideSuitKeepScore(seat,b));
+  const keepSuit = ranked[ranked.length - 1];
+  let sacrificeSuits = ranked.filter(suit => suit !== keepSuit).slice(0,2);
+  if (!sacrificeSuits.length) sacrificeSuits = ranked.slice(0,1);
+  let candidates = sideCards.filter(card => sacrificeSuits.includes(effectiveSuit(card)));
+  if (!candidates.length) candidates = sideCards.filter(card => effectiveSuit(card) !== keepSuit);
+  if (!candidates.length) candidates = sideCards;
+  const withoutStranding14 = candidates.filter(card => !wouldStrandFourteen(seat, card));
+  if (withoutStranding14.length) candidates = withoutStranding14;
+  const nonWinners = candidates.filter(card => !card.rook && card.value !== 1 && card.value !== 14 && card.value < 13);
+  if (nonWinners.length) candidates = nonWinners;
+  return chooseStrategicSluff(seat, candidates, game.trump);
+}
+function chooseStrategicSluff(seat, cards, leadSuit = null) {
+  let pool = [...cards];
+  if (!pool.length) return null;
+  if (defenderAgainstBidder(seat)) {
+    if (leadSuit && !pool.some(card => effectiveSuit(card) === leadSuit)) {
+      const nonTrump = pool.filter(card => game.trump === 'none' || effectiveSuit(card) !== game.trump);
+      const expendableNonTrump = nonTrump.filter(card => card.rook || (!card.rook && card.value !== 1 && card.value !== 14 && card.value !== 13));
+      if (expendableNonTrump.length) pool = nonTrump;
+    }
+    const suits = [...new Set(pool.map(card => effectiveSuit(card)))];
+    const protectedSuits = suits.filter(suit => {
+      if (!suit || suit === game.trump || !bidderHasShownSuit(suit)) return false;
+      const suitCards = game.hands[seat].filter(card => effectiveSuit(card) === suit);
+      return suitCards.length >= 2 || suitCards.some(card => !card.rook && (card.value === 1 || card.value >= 12));
+    });
+    if (protectedSuits.length) {
+      const alternatives = pool.filter(card => !protectedSuits.includes(effectiveSuit(card)));
+      if (alternatives.length) pool = alternatives;
+    }
+  }
+  return lowestSafeDiscard(pool, seat);
+}
+function chooseNoTrumpEarlyLossLead(seat, legal) {
+  if (game.trump !== 'none' || game.highBidder !== seat) return null;
+  const completedTricks = Math.floor((game.hands.reduce((sum,h) => sum + (12-h.length), 0)) / 3);
+  const totalTricks = 12;
+  const earlyWindow = Math.min(2, Math.max(1, Math.floor(totalTricks * 0.25)));
+  if (completedTricks >= earlyWindow || totalTricks - completedTricks <= 4) return null;
+  const hand = game.hands[seat];
+  const sureWinners = hand.filter(card => !opponentCanBeatLead(seat, card));
+  if (sureWinners.length < Math.max(3, hand.length - 3)) return null;
+  const plannedLosers = legal.filter(card =>
+    !card.rook && card.value !== 1 && card.value !== 14 && cardPoints(card) === 0 && opponentCanBeatLead(seat, card) && !wouldStrandFourteen(seat, card)
+  );
+  if (!plannedLosers.length) return null;
+  return [...plannedLosers].sort((a,b) => cardRank(a) - cardRank(b))[0];
+}
+function bidderSideSuitToAvoidAfterDefenderWin(seat) {
+  if (!defenderAgainstBidder(seat) || !game.lastTrick || game.lastTrick.winner !== seat) return null;
+  const lead = game.lastTrick.plays?.[0];
+  if (!lead || lead.seat !== game.highBidder) return null;
+  const suit = effectiveSuit(lead.card);
+  if (!suit || suit === game.trump) return null;
+  return suit;
+}
+function chooseLeadCard(seat, legal) {
+  const isDefender = defenderAgainstBidder(seat);
+  const avoidTrumpLead = isDefender;
+  let leadPool = [...legal];
+
+  // Never lead the Rook unless it is genuinely the highest card under the chosen rules.
+  const rook = leadPool.find(card => card.rook);
+  if (rook && settings.rookRank !== 'high') {
+    const nonRook = leadPool.filter(card => !card.rook);
+    if (nonRook.length) leadPool = nonRook;
+  }
+
+  if (avoidTrumpLead && game.trump && game.trump !== 'none') {
+    const nonTrump = leadPool.filter(card => effectiveSuit(card) !== game.trump);
+    if (nonTrump.length) leadPool = nonTrump;
+  }
+  if (isDefender) {
+    const nonVoid = leadPool.filter(card => !bidderIsKnownVoidIn(effectiveSuit(card)));
+    if (nonVoid.length) leadPool = nonVoid;
+    const bidderSideSuit = bidderSideSuitToAvoidAfterDefenderWin(seat);
+    if (bidderSideSuit) {
+      const otherColors = leadPool.filter(card => effectiveSuit(card) !== bidderSideSuit);
+      if (otherColors.length) leadPool = otherColors;
+    }
+    const pressureCounters = leadPool.filter(card => !card.rook && (card.value === 10 || card.value === 5) && !wouldStrandFourteen(seat, card));
+    if (pressureCounters.length) {
+      return [...pressureCounters].sort((a,b) => Number(b.value === 10) - Number(a.value === 10) || sideSuitKeepScore(seat,a.suit) - sideSuitKeepScore(seat,b.suit) || cardRank(a) - cardRank(b))[0];
+    }
+  }
+  const noTrumpEarlyLoss = chooseNoTrumpEarlyLossLead(seat, leadPool);
+  if (noTrumpEarlyLoss) return noTrumpEarlyLoss;
+
+  // Never lead a guarded 14 while its 1 remains unseen.
+  const safeLeads = leadPool.filter(card => !isGuardedFourteen(card) && !wouldStrandFourteen(seat, card));
+  if (safeLeads.length) leadPool = safeLeads;
+
+  const sureWinners = leadPool.filter(card => !opponentCanBeatLead(seat, card));
+  if (sureWinners.length) {
+    // Favor counters on a genuinely secure winner, but don't sacrifice a guarded 14.
+    return [...sureWinners].sort((a,b) => cardPoints(b) - cardPoints(a) || cardRank(b) - cardRank(a))[0];
+  }
+
+  if (!avoidTrumpLead && game.trump && game.trump !== 'none' && seat === game.highBidder) {
+    const trumps = leadPool.filter(card => effectiveSuit(card) === game.trump);
+    const opposingTrump = [0,1,2].some(opponent => opponent !== seat && game.hands[opponent].some(card => effectiveSuit(card) === game.trump));
+    if (trumps.length >= 2 && opposingTrump) return [...trumps].sort((a,b) => cardRank(b) - cardRank(a))[0];
+  }
+
+  const nonCounters = leadPool.filter(card =>
+    cardPoints(card) === 0 && !isGuardedFourteen(card) && effectiveSuit(card) !== game.trump && !wouldStrandFourteen(seat, card) && !card.rook
+  );
+  const candidates = nonCounters.length ? nonCounters : leadPool.filter(card => !card.rook).length ? leadPool.filter(card => !card.rook) : leadPool;
+  const suitLengths = candidates.reduce((counts, card) => {
+    const suit = effectiveSuit(card);
+    counts[suit] = (counts[suit] || 0) + 1;
+    return counts;
+  }, {});
+  return [...candidates].sort((a,b) => (suitLengths[effectiveSuit(a)] || 0) - (suitLengths[effectiveSuit(b)] || 0) || cardPoints(a) - cardPoints(b) || cardRank(a) - cardRank(b))[0] || legal[0];
+}
+function chooseBotCard(seat) {
+  let legal = legalCards(seat);
+  if (!legal.length) return null;
+
+  // Preserve the solitaire safeguards before taking any trick-winning line.
+  if (!game.trick.length) return chooseLeadCard(seat, legal);
+
+  const exposedFourteen = defenderAgainstBidder(seat) && game.trick[0].seat === game.highBidder
+    ? (() => {
+        const leadSuit = effectiveSuit(game.trick[0].card);
+        if (!leadSuit || cardRank(game.trick[0].card) >= 14 || cardHasBeenPlayed(leadSuit, 1)) return null;
+        const suitCards = game.hands[seat].filter(card => effectiveSuit(card) === leadSuit);
+        const fourteen = suitCards.find(card => !card.rook && card.value === 14);
+        if (suitCards.length === 2 && fourteen && legal.some(card => card.id === fourteen.id)) {
+          const winner = trickWinner(game.trick);
+          const winningPlay = game.trick.find(play => play.seat === winner);
+          if (winner !== seat && winningPlay && beats(fourteen, winningPlay.card, leadSuit)) return fourteen;
+        }
+        return null;
+      })()
+    : null;
+  if (exposedFourteen) return exposedFourteen;
+
+  const guardedOut = legal.filter(card => !isGuardedFourteen(card));
+  if (guardedOut.length) legal = guardedOut;
+
+  const rookCapture = chooseRookCapture(seat, legal);
+  if (rookCapture) return rookCapture;
+
+  const trumpPullDiscard = chooseTrumpPullDiscard(seat, legal);
+  if (trumpPullDiscard) return trumpPullDiscard;
+
+  const currentWinner = trickWinner(game.trick);
+  const winningPlay = game.trick.find(play => play.seat === currentWinner);
+  const leadSuit = effectiveSuit(game.trick[0].card);
+  const winningCards = legal.filter(card => beats(card, winningPlay.card, leadSuit));
+
+  if (winningCards.length) {
+    const secure = winningCards.filter(card => cardWinLooksSecure(seat, card, leadSuit));
+    const secureNoCounter = secure.filter(card => cardPoints(card) === 0 && !card.rook);
+    if (secureNoCounter.length) return lowestWinningCard(secureNoCounter);
+    if (secure.length) return lowestWinningCard(secure);
+    if (game.trick.length === 2) return lowestWinningCard(winningCards);
+  }
+
+  const sameSideWinning = currentWinner === seat;
+  if (sameSideWinning) {
+    const nonOvertaking = legal.filter(card => !beats(card, winningPlay.card, leadSuit));
+    const safePool = nonOvertaking.length ? nonOvertaking : legal;
+    const secure = cardWinLooksSecure(seat, winningPlay.card, leadSuit);
+    if (secure) {
+      const pointThrow = bestPointThrow(safePool);
+      if (pointThrow) return pointThrow;
+      if (safePool.length === 1) return safePool[0];
+    }
+    return chooseStrategicSluff(seat, safePool, leadSuit);
+  }
+
+  return chooseStrategicSluff(seat, legal, leadSuit) || legal[0];
 }
 
 function clearBotTimer() { if (game.botTimer) clearTimeout(game.botTimer); game.botTimer = null; }
@@ -347,6 +632,8 @@ function startHand() {
   game.tricksWonByPlayer = [0, 0, 0];
   game.captured = [[], [], []];
   game.handPoints = [0, 0, 0];
+  game.bidderVoidSuits = new Set();
+  game.bidderShownSuits = new Set();
   const deck = shuffle(buildDeck());
   for (let round = 0; round < handSize(); round++) for (let offset = 1; offset <= 3; offset++) game.hands[(game.dealer + offset) % 3].push(deck.pop());
   game.kitty = deck.splice(0);
@@ -374,6 +661,14 @@ function playCard(seat, cardId) {
   const index = game.hands[seat].findIndex(card => card.id === cardId);
   if (index < 0) return false;
   const card = game.hands[seat].splice(index, 1)[0];
+  if (seat === game.highBidder) {
+    const playedSuit = effectiveSuit(card);
+    if (playedSuit) game.bidderShownSuits.add(playedSuit);
+    if (game.trick.length) {
+      const leadSuit = effectiveSuit(game.trick[0].card);
+      if (playedSuit !== leadSuit) game.bidderVoidSuits.add(leadSuit);
+    }
+  }
   game.trick.push({ seat, card });
   game.prompt = `${game.seats[seat].name} played ${card.rook ? 'the Rook' : `${card.suit} ${card.value}`}.`;
   if (game.trick.length === 3) {
