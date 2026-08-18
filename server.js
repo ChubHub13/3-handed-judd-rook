@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const APP_VERSION = '1.0.1';
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
@@ -742,6 +743,7 @@ function sanitizeCard(card) { return { id: card.id, suit: card.suit, value: card
 function publicState(viewSeat) {
   refreshPlayers();
   return {
+    version: APP_VERSION,
     phase: game.phase,
     prompt: game.prompt,
     handNumber: game.handNumber,
@@ -897,4 +899,4 @@ const server = http.createServer(async (req, res) => {
   });
 });
 setInterval(refreshPlayers, 2500);
-server.listen(PORT, HOST, () => console.log(`3-Handed Judd Rook listening on ${HOST}:${PORT}`));
+server.listen(PORT, HOST, () => console.log(`3-Handed Judd Rook v${APP_VERSION} listening on ${HOST}:${PORT}`));
