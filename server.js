@@ -311,6 +311,7 @@ function advanceBidder() {
   if (game.seats[next].bot) scheduleBot();
 }
 function finishBidding() {
+  clearBotTimer();
   if (game.highBidder === null) return startHand();
   game.phase = 'pickup';
   game.prompt = `${game.seats[game.highBidder].name} wins the bid at ${game.highBid}.`;
@@ -328,6 +329,7 @@ function finishBidding() {
   }
 }
 function startHand() {
+  clearBotTimer();
   game.phase = 'dealing';
   game.handNumber += 1;
   game.dealer = (game.dealer + 1) % 3;
@@ -350,8 +352,11 @@ function startHand() {
   game.kitty = deck.splice(0);
   game.hands.forEach(sortHand);
   game.phase = 'bidding';
-  game.prompt = `${game.seats[game.currentBidder].name} bids first.`;
-  if (game.seats[game.currentBidder].bot) scheduleBot();
+  game.prompt = `${game.seats[game.currentBidder].name} is bidding first.`;
+  setTimeout(() => {
+    if (game.phase !== 'bidding') return;
+    if (game.seats[game.currentBidder]?.bot) scheduleBot();
+  }, 250);
 }
 function startPlaying() {
   game.phase = 'playing';
@@ -545,7 +550,7 @@ async function api(req, res) {
       let ok = false;
       switch (data.action) {
         case 'start':
-          if (seat !== 0) throw new Error('Daryl starts the game.');
+          if (game.phase !== 'waiting') throw new Error('A game is already in progress.');
           clearBotTimer();
           for (const s of game.seats) if (!s.connected) s.bot = true;
           game.scores = [0,0,0]; game.winner = null; startHand(); ok = true; break;
@@ -564,11 +569,11 @@ async function api(req, res) {
         case 'play':
           ok = playCard(seat, String(data.cardId || '')); if (!ok) throw new Error('That card cannot be played.'); break;
         case 'nextHand':
-          if (game.phase !== 'scoring' || seat !== 0) throw new Error('Only Daryl can deal the next hand.'); startHand(); ok = true; break;
+          if (game.phase !== 'scoring') throw new Error('The hand is not complete.'); startHand(); ok = true; break;
         case 'chat':
           { const text = String(data.text || '').trim().slice(0, 240); if (!text) throw new Error('Message is empty.'); chat.push({ name: game.seats[seat].name, text, at: now() }); if (chat.length > 100) chat.splice(0, chat.length - 100); ok = true; } break;
         case 'newGame':
-          if (seat !== 0) throw new Error('Daryl starts a new game.'); game.scores = [0,0,0]; game.winner = null; startHand(); ok = true; break;
+          if (game.phase !== 'gameover') throw new Error('The game is not over.'); game.scores = [0,0,0]; game.winner = null; startHand(); ok = true; break;
         default: throw new Error('Unknown action.');
       }
       return json(res, 200, { ok, state: publicState(seat) });
