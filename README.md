@@ -1,26 +1,26 @@
-# 3-Handed Judd Rook v1.0.4
+# 3-Handed Judd Rook v1.0.5
 
-Three-player multiplayer Judd Rook for Daryl, Cristi, and Cindy.
+Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; no accounts or room codes are used. Any player who has not joined is treated as a bot when the game starts, and a disconnected live seat can become a bot.
 
 ## Render
 
 - Runtime: Node
-- Build Command: `npm install`
-- Start Command: `node server.js`
-- Instance Type: Free
+- Build command: `npm install`
+- Start command: `node server.js`
+- Root directory: blank
+- Instance type: Free
 
-No database or external Node packages are required.
+## Current flow
 
-## Game flow
+1. A player selects Daryl, Cristi, or Cindy and starts the game.
+2. The server deals 12 cards to each player and a 9-card kitty.
+3. Cards are sorted by color, then by number, matching the solitaire sorting approach.
+4. The bidding status is shown to every player.
+5. When the bidder wins, the bidder sees the 9-card kitty on the table and clicks **Accept Kitty**.
+6. The 9 cards are added to the bidder's 12-card hand, making 21 cards.
+7. The bidder clicks **Choose Trump** and can choose Red, Yellow, Green, Black, or No Trump.
+8. The bidder returns exactly 9 cards to the kitty. Tap to select; press and hold a card to select that entire color.
+9. The completed trick remains visible for 3 seconds before the next trick begins.
+10. Chat is available to all three players.
 
-1. Select Daryl, Cristi, or Cindy.
-2. Any player can start the game.
-3. Any name not currently connected is represented by a bot.
-4. Three-player deal: 12 cards each plus a 9-card kitty.
-5. The winning bidder receives the kitty into their hand BEFORE choosing trump.
-6. Trump choice includes Red, Yellow, Green, Black, and No Trump.
-7. The bidder returns exactly 9 cards. Tap cards to select them; press and hold a card to select that color.
-8. The last completed trick remains visible for 3 seconds.
-9. All players see the current bid and bidder status, and can chat.
-
-The bot bidding model and key play safeguards are based on the earlier Rook Solitaire behavior.
+The server is authoritative for dealing, bidding, kitty state, trump, discards, turns, tricks, scoring, bots, and chat.

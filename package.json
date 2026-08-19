@@ -1,13 +1,9 @@
 {
   "name": "3-handed-judd-rook",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "private": true,
-  "description": "Three-handed multiplayer Judd Rook game room server",
-  "main": "server.js",
+  "description": "Three-handed Judd Rook multiplayer game",
   "scripts": {
     "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
   }
 }
