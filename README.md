@@ -1,25 +1,26 @@
-# 3-Handed Judd Rook
+# 3-Handed Judd Rook v1.0.4
 
-Three-player Judd Rook for exactly Daryl, Cristi, and Cindy.
+Three-player multiplayer Judd Rook for Daryl, Cristi, and Cindy.
 
-## Hosting
+## Render
 
-- Node.js 18+.
-- Build command: `npm install`
-- Start command: `node server.js`
+- Runtime: Node
+- Build Command: `npm install`
+- Start Command: `node server.js`
+- Instance Type: Free
 
-## Multiplayer model
+No database or external Node packages are required.
 
-There are no game rooms. The server maintains one shared game for the three named players.
+## Game flow
 
-- Daryl, Cristi, and Cindy each choose their own name when opening the app.
-- If one or more players are not connected when Daryl starts the game, the missing seats become bots.
-- If a live player disconnects during a hand, the server continues that seat with a bot.
-- The server owns cards, bidding, trump, discards, turns, trick results, scoring, and chat.
-- The completed trick remains visible for 5 seconds before the next trick begins.
-- Trump selection opens automatically for the live player immediately after that player wins the bid.
-- Bot bidding uses the original three-player bidding model from Rook Solitaire, including its 150-170/175 range and the 200 full-coverage exception.
+1. Select Daryl, Cristi, or Cindy.
+2. Any player can start the game.
+3. Any name not currently connected is represented by a bot.
+4. Three-player deal: 12 cards each plus a 9-card kitty.
+5. The winning bidder receives the kitty into their hand BEFORE choosing trump.
+6. Trump choice includes Red, Yellow, Green, Black, and No Trump.
+7. The bidder returns exactly 9 cards. Tap cards to select them; press and hold a card to select that color.
+8. The last completed trick remains visible for 3 seconds.
+9. All players see the current bid and bidder status, and can chat.
 
-## Important
-
-The game state is held in server memory. A server restart resets the current game.
+The bot bidding model and key play safeguards are based on the earlier Rook Solitaire behavior.
