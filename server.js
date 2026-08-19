@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.0.5';
+const VERSION = '1.0.9';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -51,6 +51,7 @@ const game = {
   scores: [0, 0, 0],
   handPoints: [0, 0, 0],
   tricksWon: [0, 0, 0],
+  lastHandResult: null,
   started: false,
   winner: null,
   live: [false, false, false],
@@ -133,7 +134,7 @@ function resetHand() {
   game.phase = 'bidding';
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.trick = []; game.revealUntil = 0;
-  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.winner = null;
+  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.lastHandResult = null; game.winner = null;
   createDeal();
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
   scheduleBotBidIfNeeded();
@@ -314,7 +315,7 @@ function chooseBotCard(seat) {
 
   if (!game.trick.length) {
     let leads = legal.filter(c => !isGuarded14(c) && (!c.rook || (game.trump && game.trump !== 'none' && cardRank(c) >= 16)));
-    if (bidder && game.trump && game.trump !== 'none') {
+    if (bidder && game.trump && game.trump !== 'none' && defendersStillHoldTrump(seat)) {
       const trumps = legal.filter(c => effectiveSuit(c) === game.trump && (!c.rook || cardRank(c) >= 16));
       if (trumps.length) return trumps.sort((a, b) => cardRank(b) - cardRank(a))[0];
     }
@@ -502,10 +503,29 @@ function scoreHand() {
   const kittyPoints = game.kitty.reduce((n, c) => n + cardPoints(c), 0) + 20;
   const points = game.handPoints.slice();
   points[lastWinner] += kittyPoints;
-  game.scores = game.scores.map((score, seat) => {
-    if (seat === game.highBidder) return points[seat] >= game.highBid ? score + points[seat] : Math.max(0, score - game.highBid);
-    return score + points[seat];
-  });
+  const bidder = game.highBidder;
+  const defenders = [0,1,2].filter(seat => seat !== bidder);
+  const bidderPoints = points[bidder] || 0;
+  const defenderTotal = defenders.reduce((n, seat) => n + (points[seat] || 0), 0);
+  const madeBid = bidderPoints >= game.highBid;
+  const defenderFirst = Math.floor(defenderTotal / 10) * 5;
+  const defenderSecond = defenderTotal - defenderFirst;
+  const defenderShares = [
+    { seat: defenders[0], name: playerName(defenders[0]), points: defenderFirst },
+    { seat: defenders[1], name: playerName(defenders[1]), points: defenderSecond },
+  ];
+  game.scores[bidder] = madeBid ? game.scores[bidder] + bidderPoints : Math.max(0, game.scores[bidder] - game.highBid);
+  game.scores[defenders[0]] += defenderFirst;
+  game.scores[defenders[1]] += defenderSecond;
+  game.lastHandResult = {
+    bid: game.highBid,
+    bidder,
+    bidderPoints,
+    bidMade: madeBid,
+    defenderTotal,
+    defenderShares,
+    totalPoints: bidderPoints + defenderTotal
+  };
   game.phase = 'scoring';
   game.prompt = `Hand ${game.handNumber} complete.`;
   const winner = game.scores.findIndex(s => s >= WIN_SCORE);
@@ -541,6 +561,8 @@ function publicState(seat) {
     scores: game.scores,
     handPoints: game.handPoints,
     tricksWon: game.tricksWon,
+    lastHandResult: game.lastHandResult,
+    defenders: game.highBidder === null ? [] : [0,1,2].filter(i => i !== game.highBidder),
     seats: PLAYER_NAMES.map((name, i) => ({ seat: i, name, connected: game.live[i], bot: game.bot[i] })),
     chat: game.chat,
     winner: game.winner,
