@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.0.10';
+const VERSION = '1.1.14';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -51,6 +51,7 @@ const game = {
   scores: [0, 0, 0],
   handPoints: [0, 0, 0],
   tricksWon: [0, 0, 0],
+  playedCards: [],
   lastHandResult: null,
   started: false,
   winner: null,
@@ -108,7 +109,7 @@ function resetGame() {
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = [];
   game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
   game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
-  game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0];
+  game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = [];
   game.started = false; game.winner = null; game.chat = []; game.prompt = 'Choose a player to begin.';
 }
 
@@ -134,7 +135,7 @@ function resetHand() {
   game.phase = 'bidding';
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.trick = []; game.revealUntil = 0;
-  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.lastHandResult = null; game.winner = null;
+  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.winner = null;
   createDeal();
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
   scheduleBotBidIfNeeded();
@@ -280,14 +281,23 @@ function trickWinner(trick) {
 }
 function isGuarded14(card) { return !card.rook && card.value === 14 && !cardAlreadyPlayed(card.suit, 1); }
 function cardAlreadyPlayed(suit, value) {
-  const played = [];
-  for (const t of game.lastTrick ? [game.lastTrick] : []) if (t.plays) played.push(...t.plays.map(x => x.card));
-  played.push(...game.trick.map(x => x.card));
-  return played.some(c => !c.rook && c.suit === suit && c.value === value);
+  return game.playedCards.some(c => !c.rook && c.suit === suit && c.value === value);
 }
-function defendersStillHoldTrump(seat) {
+function teamOf(seat) { return seat === game.highBidder ? 0 : 1; }
+function opponentsStillHoldTrump(seat) {
   if (!game.trump || game.trump === 'none') return false;
-  return [0,1,2].some(i => i !== seat && game.hands[i].some(c => effectiveSuit(c) === game.trump));
+  return [0, 1, 2].some(i => i !== seat && teamOf(i) !== teamOf(seat) && game.hands[i].some(c => effectiveSuit(c) === game.trump));
+}
+function cardWinLooksSecure(seat, card, leadSuit) {
+  const playedSeats = new Set(game.trick.map(play => play.seat));
+  for (let next = (seat + 1) % 3; next !== game.leader; next = (next + 1) % 3) {
+    if (next === seat || playedSeats.has(next) || teamOf(next) === teamOf(seat)) continue;
+    const hand = game.hands[next] || [];
+    const followers = hand.filter(candidate => effectiveSuit(candidate) === leadSuit);
+    const choices = followers.length ? followers : hand;
+    if (choices.some(candidate => beats(candidate, card, leadSuit))) return false;
+  }
+  return true;
 }
 function wouldStrand14(seat, card) {
   if (card.rook || card.value === 14 || cardAlreadyPlayed(card.suit, 1)) return false;
@@ -315,7 +325,7 @@ function chooseBotCard(seat) {
 
   if (!game.trick.length) {
     let leads = legal.filter(c => !isGuarded14(c) && (!c.rook || (game.trump && game.trump !== 'none' && cardRank(c) >= 16)));
-    if (bidder && game.trump && game.trump !== 'none' && defendersStillHoldTrump(seat)) {
+    if (bidder && game.trump && game.trump !== 'none' && opponentsStillHoldTrump(seat)) {
       const trumps = legal.filter(c => effectiveSuit(c) === game.trump && (!c.rook || cardRank(c) >= 16));
       if (trumps.length) return trumps.sort((a, b) => cardRank(b) - cardRank(a))[0];
     }
@@ -335,12 +345,25 @@ function chooseBotCard(seat) {
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
 
+  // The two defenders are a side.  Do not steal a teammate's trick just to
+  // win it again; feed 5s, 10s, and the Rook only when that trick is secure.
+  if (teamOf(currentWinner) === teamOf(seat)) {
+    const under = legal.filter(c => !beats(c, winningPlay.card, leadSuit));
+    const pool = under.length ? under : legal;
+    if (cardWinLooksSecure(seat, winningPlay.card, leadSuit)) {
+      const points = pool.filter(isPointThrow);
+      if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
+    }
+    const safe = pool.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
+    return lowestSafe(safe.length ? safe : pool, seat);
+  }
+
   if (lastToPlay && currentWinner !== seat && !bidder) {
     const points = legal.filter(c => isPointThrow(c) && !beats(c, winningPlay.card, leadSuit));
     if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
   }
 
-  if (bidder && game.trump && game.trump !== 'none' && defendersStillHoldTrump(seat)) {
+  if (bidder && game.trump && game.trump !== 'none' && opponentsStillHoldTrump(seat)) {
     const trumps = legal.filter(c => effectiveSuit(c) === game.trump);
     if (trumps.length === 1 && legal.length > 1 && game.hands[seat].length <= 2) {
       const nonTrumps = legal.filter(c => effectiveSuit(c) !== game.trump);
@@ -488,6 +511,7 @@ function playCard(seat, cardId) {
   const index = game.hands[seat].findIndex(c => c.id === cardId);
   if (index < 0) return false;
   const card = game.hands[seat].splice(index, 1)[0];
+  game.playedCards.push({ ...card });
   game.trick.push({ seat, card });
   if (game.trick.length === 3) resolveTrick();
   else { game.turn = (seat + 1) % 3; game.prompt = `${playerName(game.turn)} to play.`; scheduleTurn(); }
