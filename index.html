@@ -3427,6 +3427,24 @@
 .kitty-stage.acceptable { user-select: none; -webkit-tap-highlight-color: transparent; }
 .kitty-stage.acceptable:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 </style>
+<style>
+/* Keep the full card face visible and use encoding-safe suit marks. */
+.card::after { display: none; }
+@media (max-width: 1200px) {
+  .hand-zone {
+    overflow: visible !important;
+    height: calc(var(--card-h) + 58px) !important;
+  }
+  .hand {
+    height: 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 44px 10px 10px !important;
+  }
+  .hand .card { margin-left: calc(var(--card-w) * -0.31) !important; }
+  .hand .card:first-child { margin-left: 0 !important; }
+}
+</style>
 </head>
 <body data-theme="classic" data-version="1.1.14">
 <main class="app">
@@ -3484,7 +3502,7 @@ function showToast(t){els.toast.textContent=t;els.toast.classList.add("show");cl
 function openModal(html){els.modal.innerHTML=html;els.modalBackdrop.classList.add("open");}
 function closeModal(){els.modalBackdrop.classList.remove("open");els.modal.innerHTML="";}
 async function api(path,options={}){const r=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const d=await r.json();if(!r.ok||d.ok===false)throw new Error(d.message||"Request failed");return d;}
-function cardInner(c){if(c.rook)return '<div class="corner top"><span>R</span><span class="pip">â—†</span></div><div class="card-center"><div><div class="rook-bird">R</div><div class="rook-label">ROOK</div></div></div><div class="corner bottom"><span>R</span><span class="pip">â—†</span></div>';return `<div class="corner top"><span>${c.value}</span><span class="pip">â—</span></div><div class="card-center"><div><div class="big-value">${c.value}</div><div class="suit-name">${c.suit}</div></div></div><div class="corner bottom"><span>${c.value}</span><span class="pip">â—</span></div>`;}
+function cardInner(c){if(c.rook)return '<div class="corner top"><span>R</span><span class="pip">&#9670;</span></div><div class="card-center"><div><div class="rook-bird">R</div><div class="rook-label">ROOK</div></div></div><div class="corner bottom"><span>R</span><span class="pip">&#9670;</span></div>';return `<div class="corner top"><span>${c.value}</span><span class="pip">&#9679;</span></div><div class="card-center"><div><div class="big-value">${c.value}</div><div class="suit-name">${c.suit}</div></div></div><div class="corner bottom"><span>${c.value}</span><span class="pip">&#9679;</span></div>`;}
 function cardHtml(c,extra=""){return `<div class="card ${c.rook?"rook":c.suit} ${extra}">${cardInner(c)}</div>`;}
 function playerState(i){return state.data?.seats?.[i];}
 function render(){const s=state.data;if(!s)return;
