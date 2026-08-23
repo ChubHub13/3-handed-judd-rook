@@ -3429,7 +3429,7 @@
 </style>
 <style>
 /* Keep the full card face visible and use encoding-safe suit marks. */
-.card::after { display: none; }
+.card::after { display: block; }
 @media (max-width: 1200px) {
   .hand-zone {
     overflow: visible !important;
@@ -3443,6 +3443,17 @@
   }
   .hand .card { margin-left: calc(var(--card-w) * -0.31) !important; }
   .hand .card:first-child { margin-left: 0 !important; }
+}
+@media (max-height: 520px) and (orientation: landscape) {
+  :root { --card-w: clamp(38px, 5.1vw, 52px); }
+  .hand-zone {
+    height: calc(var(--card-h) + 12px) !important;
+    overflow: visible !important;
+  }
+  .hand {
+    padding: 2px 6px !important;
+  }
+  .hand .card { margin-left: calc(var(--card-w) * -0.25) !important; }
 }
 </style>
 </head>
