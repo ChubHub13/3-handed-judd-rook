@@ -3527,6 +3527,8 @@
 .claim-reveal-cards .card:first-child { margin-left:0; }
 .bitter-bunch { color:#f4dfb0; border-color:rgba(244,223,176,.28); background:rgba(91,44,19,.7); }
 .bitter-bunch:hover:not(:disabled) { background:rgba(118,56,22,.88); }
+.bitter-bunch-option { width:100%; display:flex; justify-content:center; margin-top:8px; padding-top:8px; border-top:1px solid rgba(229,183,79,.18); }
+.bitter-bunch-option .bitter-bunch { min-width:180px; }
 @media (min-width: 761px) {
   .game-main { grid-template-rows:minmax(0,1fr) auto !important; }
 }
@@ -3568,13 +3570,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.23">
+<body data-theme="classic" data-version="1.1.24">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.23</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.24</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3612,7 +3614,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.23";
+const APP_VERSION="1.1.24";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3738,7 +3740,7 @@ renderControls=function(){
   renderControlsWithoutDuplicates();
   const s=state.data;if(!s)return;
   [...els.controls.querySelectorAll("button")].forEach(button=>{if(["Start Game","Choose Trump"].includes(button.textContent.trim()))button.remove();});
-  if(s.phase==="bidding"){const votes=s.bitterVotes||[],bitter=document.createElement("button");bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});els.controls.appendChild(bitter);}
+  if(s.phase==="bidding"&&!s.highBid){const votes=s.bitterVotes||[],wrap=document.createElement("div"),bitter=document.createElement("button");wrap.className="bitter-bunch-option";bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});wrap.appendChild(bitter);els.controls.appendChild(wrap);}
   if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}
 };
 openTrumpPicker=function(){
