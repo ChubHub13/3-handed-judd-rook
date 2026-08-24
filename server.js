@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.20';
+const VERSION = '1.1.21';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -560,6 +560,37 @@ function botPlay(seat) {
   const card = chooseBotCard(seat);
   if (card) playCard(seat, card.id);
 }
+function canClaimRest(seat) {
+  if (game.phase !== 'playing' || game.highBidder !== seat || game.turn !== seat || game.trick.length || !(game.hands[seat] || []).length) return false;
+  const bidderHand = game.hands[seat].map(card => ({ ...card }));
+  const opponentHands = [0, 1, 2].filter(i => i !== seat).map(i => game.hands[i].map(card => ({ ...card })));
+  const remove = (hand, card) => { const index = hand.findIndex(item => item.id === card.id); if (index >= 0) hand.splice(index, 1); };
+  while (bidderHand.length) {
+    const lead = [...bidderHand].sort((a, b) => cardRank(b) - cardRank(a) || cardPoints(b) - cardPoints(a))[0];
+    const leadSuit = effectiveSuit(lead);
+    for (const hand of opponentHands) {
+      const followers = hand.filter(card => effectiveSuit(card) === leadSuit);
+      const legal = followers.length ? followers : hand;
+      if (legal.some(card => beats(card, lead, leadSuit))) return false;
+      if (followers.length) remove(hand, [...followers].sort((a, b) => cardRank(a) - cardRank(b) || cardPoints(a) - cardPoints(b))[0]);
+    }
+    remove(bidderHand, lead);
+  }
+  return true;
+}
+function claimRest(seat) {
+  if (!canClaimRest(seat)) return false;
+  clearTimeout(botTimer); clearTimeout(revealTimer);
+  const remaining = game.hands.flatMap(hand => hand.splice(0));
+  const points = remaining.reduce((total, card) => total + cardPoints(card), 0);
+  game.handPoints[seat] += points;
+  game.tricksWon[seat] += remaining.length / 3;
+  game.lastTrick = { plays: [], winner: seat, points };
+  game.trick = [];
+  game.prompt = `${playerName(seat)} claims the remaining tricks.`;
+  scoreHand();
+  return true;
+}
 function scoreHand() {
   const lastWinner = game.lastTrick?.winner ?? game.leader;
   const kittyPoints = game.kitty.reduce((n, c) => n + cardPoints(c), 0) + 20;
@@ -570,15 +601,13 @@ function scoreHand() {
   const bidderPoints = points[bidder] || 0;
   const defenderTotal = defenders.reduce((n, seat) => n + (points[seat] || 0), 0);
   const madeBid = bidderPoints >= game.highBid;
-  const defenderFirst = Math.floor(defenderTotal / 10) * 5;
-  const defenderSecond = defenderTotal - defenderFirst;
   const defenderShares = [
-    { seat: defenders[0], name: playerName(defenders[0]), points: defenderFirst },
-    { seat: defenders[1], name: playerName(defenders[1]), points: defenderSecond },
+    { seat: defenders[0], name: playerName(defenders[0]), points: defenderTotal },
+    { seat: defenders[1], name: playerName(defenders[1]), points: defenderTotal },
   ];
   game.scores[bidder] = madeBid ? game.scores[bidder] + bidderPoints : Math.max(0, game.scores[bidder] - game.highBid);
-  game.scores[defenders[0]] += defenderFirst;
-  game.scores[defenders[1]] += defenderSecond;
+  game.scores[defenders[0]] += defenderTotal;
+  game.scores[defenders[1]] += defenderTotal;
   game.lastHandResult = {
     bid: game.highBid,
     bidder,
@@ -628,6 +657,7 @@ function publicState(seat) {
     seats: PLAYER_NAMES.map((name, i) => ({ seat: i, name, connected: game.live[i], bot: game.bot[i] })),
     chat: game.chat,
     winner: game.winner,
+    canClaimRest: canClaimRest(seat),
   };
 }
 function getSession(token) { return sessions.get(String(token || '')) || null; }
@@ -700,6 +730,7 @@ async function api(req, res) {
     else if (data.action === 'selectDiscard' || data.action === 'selectDiscards') ok = selectDiscards(s.seat, data.cardIds);
     else if (data.action === 'discard') { ok = selectDiscards(s.seat, data.cardIds); if (ok) ok = finishDiscard(s.seat); }
     else if (data.action === 'play') ok = playCard(s.seat, data.cardId);
+    else if (data.action === 'claimRest') ok = claimRest(s.seat);
     else if (data.action === 'chat') { const text = String(data.text || '').trim().slice(0, 240); if (text) game.chat.push({ name: playerName(s.seat), text, at: now() }); game.chat = game.chat.slice(-60); }
     else if (data.action === 'nextHand') { if (game.phase === 'scoring') resetHand(); else ok = false; }
     else if (data.action === 'newGame') { game.scores = [0,0,0]; game.handNumber = 0; game.started = false; game.winner = null; resetHand(); game.started = true; }
