@@ -3476,6 +3476,17 @@
   .hand .card:first-child { margin-left: 0 !important; }
 }
 </style>
+<style>
+/* The three-handed table needs a reserved card lane; keep every card inside
+   the felt instead of resting it on the table frame. */
+@media (min-width: 1201px) {
+  .hand-zone {
+    bottom: 18px;
+    height: calc(var(--card-h) + 32px);
+  }
+  .player.south { bottom: calc(var(--card-h) + 58px); }
+}
+</style>
 </head>
 <body data-theme="classic" data-version="1.1.14">
 <main class="app">
@@ -3484,7 +3495,7 @@
       <div class="brand-mark">R</div>
       <div class="brand-copy">
         <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.14</span></div>
-        <p>Daryl â€¢ Cristi â€¢ Cindy â€¢ fixed hands â€¢ bot fallback</p>
+        <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
     <section class="score-history topbar-last-trick" aria-label="Last trick">
@@ -3497,9 +3508,9 @@
   <div class="game-layout">
     <aside class="game-sidebar" aria-label="Game information">
       <div class="table-info sidebar-panel sidebar-trump"><div class="sidebar-heading">Trump</div><div class="trump-display"><span class="trump-dot" id="trumpDot"></span><span id="tableInfoText">No trump selected</span></div></div>
-      <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">â€”</strong></div></section>
+      <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
-      <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Messageâ€¦"><button class="btn small">Send</button></form></section>
+      <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
       <div class="sidebar-actions"><button class="btn danger" id="startButton">Start Game</button></div>
     </aside>
 
@@ -3557,6 +3568,8 @@ async function send(action){try{const d=await api("/api/action",{method:"POST",b
 async function poll(){if(!state.token)return;try{const d=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=d.state;render();}catch(e){showToast(e.message);clearInterval(state.poll);clearInterval(state.heartbeat);}}
 async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(e){}}
 function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,600);state.heartbeat=setInterval(heartbeat,2200);poll();}
+const renderGame=render;
+render=function(){renderGame();if(els.bidWinnerValue.textContent==="â€”")els.bidWinnerValue.textContent="-";};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
