@@ -3494,14 +3494,34 @@
 .sidebar-actions #changePlayerButton { order: 0; }
 .sidebar-actions #startButton { order: 1; }
 </style>
+<style>
+/* Trump is deliberately a small table toolbar: the bidder keeps their full
+   hand in view while making the decision. */
+.trump-picker-bar { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:40; display:flex; align-items:center; justify-content:center; gap:7px; max-width:calc(100% - 24px); padding:8px 10px; border:1px solid var(--gold); border-radius:12px; background:rgba(18,12,4,.95); box-shadow:0 8px 22px rgba(0,0,0,.45); }
+.trump-picker-bar strong { color:var(--gold); white-space:nowrap; font-size:12px; }
+.trump-picker-bar .color-choice { min-width:58px; padding:7px 8px; font-size:11px; }
+.game-main > .chat-panel { min-height:112px; margin:0; }
+.game-main > .chat-panel .chat-messages { min-height:58px; max-height:92px; }
+@media (min-width: 761px) {
+  .game-main { grid-template-rows:minmax(0,1fr) auto minmax(112px,auto); }
+}
+@media (max-width: 760px) {
+  .app, .game-layout { width:100%; max-width:100%; margin-left:0; margin-right:0; overflow-x:hidden; }
+  .game-main { grid-template-rows:minmax(270px,1fr) auto 118px !important; min-width:0; }
+  .game-main > .chat-panel { min-width:0; min-height:118px; border-radius:12px; }
+  .trump-picker-bar { top:8px; gap:4px; padding:6px; flex-wrap:wrap; }
+  .trump-picker-bar strong { width:100%; text-align:center; }
+  .trump-picker-bar .color-choice { min-width:50px; padding:6px 5px; }
+}
+</style>
 </head>
-<body data-theme="classic" data-version="1.1.14">
+<body data-theme="classic" data-version="1.1.15">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.14</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.15</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3518,7 +3538,7 @@
       <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
       <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
-      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn danger" id="startButton">Start Game</button></div>
+      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn danger" id="startButton">Start Game</button></div>
     </aside>
 
     <div class="game-main">
@@ -3539,7 +3559,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.14";
+const APP_VERSION="1.1.15";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3592,13 +3612,24 @@ openTrumpPicker=function(){
   const s=state.data;
   if(!s||s.phase!=="pickup"||s.highBidder!==state.seat||!s.kittyAccepted){showToast("Accept the kitty before choosing trump.");return;}
   const choices=["red","yellow","green","black","none"];
-  openModal(`<h2>Choose Trump</h2><p class="autotrump-note">Choose a trump color.</p><div class="color-choices">${choices.map(choice=>`<button type="button" class="color-choice ${choice==="none"?"no-trump":choice}" data-trump="${choice}">${choice==="none"?"No Trump":choice[0].toUpperCase()+choice.slice(1)}</button>`).join("")}</div>`);
-  els.modal.querySelectorAll("[data-trump]").forEach(button=>button.onclick=async()=>{try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,action:"trump",trump:button.dataset.trump})});state.data=data.state;closeModal();render();}catch(error){showToast(error.message);}});
+  document.getElementById("trumpPickerBar")?.remove();
+  const bar=document.createElement("div");bar.id="trumpPickerBar";bar.className="trump-picker-bar";
+  bar.innerHTML=`<strong>Choose Trump</strong>${choices.map(choice=>`<button type="button" class="color-choice ${choice==="none"?"no-trump":choice}" data-trump="${choice}">${choice==="none"?"No Trump":choice[0].toUpperCase()+choice.slice(1)}</button>`).join("")}`;
+  els.tableShell.appendChild(bar);
+  bar.querySelectorAll("[data-trump]").forEach(button=>button.onclick=async()=>{try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,action:"trump",trump:button.dataset.trump})});state.data=data.state;bar.remove();render();}catch(error){showToast(error.message);}});
 };
+const renderControlsBase=renderControls;
+renderControls=function(){renderControlsBase();const s=state.data;if(s?.phase==="discard"&&s.highBidder===state.seat){const change=document.createElement("button");change.type="button";change.className="btn";change.textContent="Change Trump";change.onclick=async()=>{await send({action:"changeTrump"});if(state.data?.phase==="pickup")openTrumpPicker();};els.controls.prepend(change);}};
+const originalPromptText=promptText;
+promptText=function(s){return originalPromptText(s).replaceAll("Ã¢â‚¬â€","-").replaceAll("Ã¢â‚¬Â¢","•");};
+function openSettings(){openModal(`<h2>Settings</h2><p class="autotrump-note">Choose the table appearance.</p><div class="color-choices"><button class="btn primary" data-theme-choice="classic">Classic</button><button class="btn" data-theme-choice="night">Night</button></div>`);els.modal.querySelectorAll("[data-theme-choice]").forEach(button=>button.onclick=()=>{document.body.dataset.theme=button.dataset.themeChoice;localStorage.setItem("juddRookTheme",button.dataset.themeChoice);closeModal();});}
+const chatPanel=document.querySelector(".chat-panel");
+if(chatPanel)document.querySelector(".game-main").appendChild(chatPanel);
+const savedTheme=localStorage.getItem("juddRookTheme");if(savedTheme)document.body.dataset.theme=savedTheme;
 const renderGame=render;
 render=function(){renderGame();if(els.bidWinnerValue.textContent==="â€”")els.bidWinnerValue.textContent="-";};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
-document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
+document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
 </body>
