@@ -299,6 +299,22 @@ function cardWinLooksSecure(seat, card, leadSuit) {
   }
   return true;
 }
+function bidderLedBelowHigh() {
+  const lead = game.trick[0];
+  return !!lead && lead.seat === game.highBidder && cardRank(lead.card) < 15;
+}
+function defendersCanTakeCurrentTrick(seat, winningCard, leadSuit) {
+  if (teamOf(trickWinner(game.trick)) === 1) return true;
+  if (legalCards(seat).some(card => beats(card, winningCard, leadSuit))) return true;
+  const alreadyPlayed = new Set(game.trick.map(play => play.seat));
+  return [0, 1, 2].some(other => {
+    if (other === seat || alreadyPlayed.has(other) || teamOf(other) !== 1) return false;
+    const hand = game.hands[other] || [];
+    const followers = hand.filter(card => effectiveSuit(card) === leadSuit);
+    const choices = followers.length ? followers : hand;
+    return choices.some(card => beats(card, winningCard, leadSuit));
+  });
+}
 function wouldStrand14(seat, card) {
   if (card.rook || card.value === 14 || cardAlreadyPlayed(card.suit, 1)) return false;
   const remain = game.hands[seat].filter(c => c.id !== card.id && !c.rook && c.suit === card.suit);
@@ -344,6 +360,17 @@ function chooseBotCard(seat) {
 
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
+
+  // The defenders are partners.  When the bidder leads below the top card,
+  // feed counters into the trick whenever the defending side can take it.
+  // This includes a 1 when it is the useful legal counter, matching Solitaire
+  // defender point-feeding rather than protecting it automatically.
+  if (!bidder && bidderLedBelowHigh() && defendersCanTakeCurrentTrick(seat, winningPlay.card, leadSuit)) {
+    const counters = legal.filter(card => cardPoints(card) > 0);
+    if (counters.length) return counters.sort((a, b) =>
+      cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b)
+    )[0];
+  }
 
   // The two defenders are a side.  Do not steal a teammate's trick just to
   // win it again; feed 5s, 10s, and the Rook only when that trick is secure.
