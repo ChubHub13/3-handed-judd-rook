@@ -3525,6 +3525,9 @@
 .claim-reveal-cards { display:flex; justify-content:center; min-height:48px; overflow:visible; }
 .claim-reveal-cards .card { --card-w:34px; --card-h:48px; margin-left:-16px; flex:0 0 auto; }
 .claim-reveal-cards .card:first-child { margin-left:0; }
+.misdeal-hand { display:flex; justify-content:center; margin:12px 0; min-height:92px; overflow:visible; }
+.misdeal-hand .card { --card-w:52px; --card-h:74px; margin-left:-30px; flex:0 0 auto; }
+.misdeal-hand .card:first-child { margin-left:0; }
 .bitter-bunch { color:#f4dfb0; border-color:rgba(244,223,176,.28); background:rgba(91,44,19,.7); }
 .bitter-bunch:hover:not(:disabled) { background:rgba(118,56,22,.88); }
 .bitter-bunch-option { width:100%; display:flex; justify-content:center; margin-top:8px; padding-top:8px; border-top:1px solid rgba(229,183,79,.18); }
@@ -3570,13 +3573,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.24">
+<body data-theme="classic" data-version="1.1.25">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.24</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.25</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3614,7 +3617,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.24";
+const APP_VERSION="1.1.25";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3761,6 +3764,10 @@ const showScorePopupWithTeamTotals=showHandScorePopup;
 showHandScorePopup=function(s){showScorePopupWithTeamTotals(s);els.modal.querySelectorAll(".summary-card span").forEach(span=>{if(span.textContent.includes("Shared defender"))span.textContent="Defender-team total";});els.modal.querySelectorAll(".table-dialog-summary").forEach(note=>{if(note.textContent.includes("Defenders shared"))note.innerHTML=`<strong>Each defender receives ${s.lastHandResult?.defenderTotal||0} points.</strong>`;});};
 const showScorePopupWithClaimReveal=showHandScorePopup;
 showHandScorePopup=function(s){showScorePopupWithClaimReveal(s);if(!Array.isArray(s.claimReveal)||!s.claimReveal.length)return;const reveal=document.createElement("section");reveal.className="claim-reveal";reveal.innerHTML=`<h3>Remaining Cards — Claimed by ${escapeHtml(playerState(s.highBidder)?.name||"Bidder")}</h3>${s.claimReveal.map((hand,seat)=>`<div class="claim-reveal-row"><strong>${escapeHtml(playerState(seat)?.name||"")}</strong><div class="claim-reveal-cards">${hand.map(card=>cardHtml(card)).join("")}</div></div>`).join("")}`;els.modal.querySelector(".modal-actions")?.before(reveal);};
+document.addEventListener("pointerdown",event=>{const card=event.target.closest?.("button.card");if(!card||state.data?.phase!=="discard"||state.data?.highBidder!==state.seat)return;event.stopPropagation();let timer=setTimeout(()=>{timer=null;card.dataset.holdSelected="1";card.classList.remove("discard-hold");const id=card.dataset.cardId,handCard=(state.data?.hands[state.seat]||[]).find(item=>item.id===id);if(handCard)selectDiscardColor(handCard);},950);card.classList.add("discard-hold");const clear=()=>{if(timer){clearTimeout(timer);timer=null;}card.classList.remove("discard-hold");card.removeEventListener("pointerup",clear);card.removeEventListener("pointerleave",clear);card.removeEventListener("pointercancel",clear);};card.addEventListener("pointerup",clear);card.addEventListener("pointerleave",clear);card.addEventListener("pointercancel",clear);},true);
+document.addEventListener("click",event=>{const card=event.target.closest?.("button.card");if(card?.dataset.holdSelected){delete card.dataset.holdSelected;event.preventDefault();event.stopImmediatePropagation();}},true);
+const renderWithHandPoints=render;
+render=function(){renderWithHandPoints();const s=state.data;if(!s)return;for(let i=0;i<3;i++){const points=document.getElementById(`handPoints${i}`);if(points)points.textContent=`${s.handPoints?.[i]||0}`;}if(s.canRedeal&&state.lastMisdealHand!==s.handNumber){state.lastMisdealHand=s.handNumber;const hand=s.hands[state.seat]||[];openModal(`<h2>Misdeal</h2><p class="table-dialog-summary">Your hand has no point cards. You may request a redeal before bidding begins.</p><div class="misdeal-hand">${hand.map(card=>cardHtml(card)).join("")}</div><div class="modal-actions"><button class="btn primary" id="misdealRedeal">Re-Deal</button></div>`);document.getElementById("misdealRedeal").onclick=async()=>{await send({action:"redeal"});closeModal();};}};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
