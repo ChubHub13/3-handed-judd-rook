@@ -3510,6 +3510,14 @@
 .hand-zone.expanded-hand .hand { width:max-content !important; min-width:100% !important; justify-content:flex-start !important; padding:10px 12px 14px !important; }
 .hand-zone.expanded-hand .hand .card { margin-left:6px !important; flex:0 0 auto; }
 .hand-zone.expanded-hand .hand .card:first-child { margin-left:0 !important; }
+/* Solitaire-style discard selection: cards leave the hand and fan into the
+   center kitty pile while a short flight animation shows the move. */
+.discard-selection-pile { position:absolute; z-index:35; left:50%; top:48%; width:min(360px,46vw); height:150px; transform:translate(-50%,-50%); pointer-events:none; }
+.discard-selection-label { position:absolute; left:50%; top:-2px; transform:translateX(-50%); color:var(--gold); font-size:11px; font-weight:1000; letter-spacing:.12em; text-transform:uppercase; white-space:nowrap; text-shadow:0 2px 6px rgba(0,0,0,.55); }
+.discard-selection-card { --card-w:clamp(52px,5.4vw,72px); --card-h:calc(var(--card-w)*1.42); position:absolute; left:50%; top:56%; width:var(--card-w); height:var(--card-h); padding:0; border:0; background:transparent; cursor:pointer; pointer-events:auto; transform-origin:center; filter:drop-shadow(0 8px 8px rgba(0,0,0,.35)); }
+.discard-selection-card:hover { z-index:40 !important; margin-top:-8px; }
+.discard-selection-card .card { width:var(--card-w); height:var(--card-h); margin:0 !important; transform:none !important; pointer-events:none; }
+.flying-to-kitty { position:fixed !important; z-index:9999 !important; margin:0 !important; pointer-events:none !important; transition:none !important; }
 @media (min-width: 761px) {
   .game-main { grid-template-rows:minmax(0,1fr) auto !important; }
 }
@@ -3535,13 +3543,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.19">
+<body data-theme="classic" data-version="1.1.20">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.19</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.20</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3567,7 +3575,7 @@
         <div class="player west" id="player1"><div class="avatar" id="avatar1">C</div><div class="player-meta"><div class="player-name" id="name1">Cristi</div><div class="player-detail" id="detail1"></div><div class="player-hand-points" id="handPoints1">0</div></div><div class="mini-cards" id="mini1"></div></div>
         <div class="player south" id="player0"><div class="avatar" id="avatar0">D</div><div class="player-meta"><div class="player-name" id="name0">Daryl</div><div class="player-detail" id="detail0"></div><div class="player-hand-points" id="handPoints0">0</div></div></div>
         <div class="trick-area"><div class="play-slot north" id="slot2"></div><div class="play-slot west" id="slot1"></div><div class="play-slot south" id="slot0"></div></div>
-        <div class="nest" id="nestDisplay"><div class="nest-stack"><div class="nest-card"></div><div class="nest-card"></div></div><div id="nestLabel">9-card kitty</div></div><div class="kitty-stage" id="kittyStage" hidden></div>
+        <div class="nest" id="nestDisplay"><div class="nest-stack"><div class="nest-card"></div><div class="nest-card"></div></div><div id="nestLabel">9-card kitty</div></div><div class="kitty-stage" id="kittyStage" hidden></div><div class="discard-selection-pile" id="discardSelectionPile" hidden aria-label="Cards selected for the kitty"></div>
         <div class="hand-zone"><div class="hand" id="humanHand"></div></div>
         <div class="table-dialog" id="tableDialog" hidden></div>
       </section>
@@ -3579,7 +3587,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.19";
+const APP_VERSION="1.1.20";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3671,6 +3679,31 @@ const renderWithScorePopup=render;
 render=function(){renderWithScorePopup();if(state.scoreModalOpen&&!['scoring','gameover'].includes(state.data?.phase)){state.scoreModalOpen=false;closeModal();}};
 const showScorePopupForAllPlayers=showHandScorePopup;
 showHandScorePopup=function(s){state.scoreModalOpen=true;showScorePopupForAllPlayers(s);};
+function renderDiscardSelectionPile(){
+  const pile=document.getElementById("discardSelectionPile"),s=state.data;
+  if(!pile||!s)return;
+  const cards=s.phase==="discard"&&s.highBidder===state.seat?(s.hands[state.seat]||[]).filter(card=>(s.selectedDiscards||[]).includes(card.id)):[];
+  pile.hidden=!cards.length;
+  if(!cards.length){pile.innerHTML="";return;}
+  const center=(cards.length-1)/2;
+  pile.innerHTML=`<div class="discard-selection-label">Kitty ${cards.length}/9</div>${cards.map((card,index)=>{const offset=index-center,x=offset*Math.min(22,105/Math.max(1,cards.length-1)),y=Math.abs(offset)*2,rotation=offset*4;return `<button class="discard-selection-card" type="button" data-discard-card="${card.id}" style="z-index:${index+1};transform:translate(-50%,-50%) translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${rotation.toFixed(1)}deg)">${cardHtml(card)}</button>`;}).join("")}`;
+  pile.querySelectorAll("[data-discard-card]").forEach(button=>button.onclick=()=>toggleDiscard(button.dataset.discardCard));
+  for(const id of s.selectedDiscards||[]){const handCard=els.hand.querySelector(`[data-card-id="${id}"]`);if(handCard)handCard.style.visibility="hidden";}
+}
+const renderWithDiscardPile=render;
+render=function(){renderWithDiscardPile();renderDiscardSelectionPile();};
+const toggleDiscardWithFlight=toggleDiscard;
+toggleDiscard=function(cardId){
+  const s=state.data,alreadySelected=(s?.selectedDiscards||[]).includes(cardId),source=els.hand.querySelector(`[data-card-id="${cardId}"]`);
+  let flying=null,sourceRect=null;
+  if(!alreadySelected&&source){sourceRect=source.getBoundingClientRect();flying=source.cloneNode(true);flying.classList.remove("playable","selected");flying.classList.add("flying-to-kitty");flying.disabled=true;Object.assign(flying.style,{left:`${sourceRect.left}px`,top:`${sourceRect.top}px`,width:`${sourceRect.width}px`,height:`${sourceRect.height}px`});document.body.appendChild(flying);}
+  toggleDiscardWithFlight(cardId);
+  if(!flying||!sourceRect)return;
+  const tableRect=els.tableShell.getBoundingClientRect(),targetX=tableRect.left+tableRect.width/2,targetY=tableRect.top+tableRect.height*.48;
+  const dx=targetX-(sourceRect.left+sourceRect.width/2),dy=targetY-(sourceRect.top+sourceRect.height/2),end=`translate3d(${dx}px,${dy}px,0) rotate(3deg) scale(.7)`;
+  if(typeof flying.animate!=="function"){flying.style.transform=end;setTimeout(()=>flying.remove(),360);return;}
+  flying.animate([{transform:"translate3d(0,0,0) rotate(0deg) scale(1)",opacity:1},{transform:end,opacity:.95}],{duration:360,easing:"cubic-bezier(.2,.72,.2,1)",fill:"forwards"}).finished.catch(()=>undefined).finally(()=>flying.remove());
+};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
