@@ -59,6 +59,7 @@ const game = {
   bot: [true, true, true],
   lastSeen: [0, 0, 0],
   chat: [],
+  claimReveal: null,
   prompt: 'Choose a player to begin.',
 };
 
@@ -110,7 +111,7 @@ function resetGame() {
   game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
   game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
   game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = [];
-  game.started = false; game.winner = null; game.chat = []; game.prompt = 'Choose a player to begin.';
+  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.prompt = 'Choose a player to begin.';
 }
 
 function ensureBots() {
@@ -135,7 +136,7 @@ function resetHand() {
   game.phase = 'bidding';
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.trick = []; game.revealUntil = 0;
-  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.winner = null;
+  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
   createDeal();
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
   scheduleBotBidIfNeeded();
@@ -361,17 +362,6 @@ function chooseBotCard(seat) {
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
 
-  // The defenders are partners.  When the bidder leads below the top card,
-  // feed counters into the trick whenever the defending side can take it.
-  // This includes a 1 when it is the useful legal counter, matching Solitaire
-  // defender point-feeding rather than protecting it automatically.
-  if (!bidder && bidderLedBelowHigh() && defendersCanTakeCurrentTrick(seat, winningPlay.card, leadSuit)) {
-    const counters = legal.filter(card => cardPoints(card) > 0);
-    if (counters.length) return counters.sort((a, b) =>
-      cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b)
-    )[0];
-  }
-
   // The two defenders are a side.  Do not steal a teammate's trick just to
   // win it again; feed 5s, 10s, and the Rook only when that trick is secure.
   if (teamOf(currentWinner) === teamOf(seat)) {
@@ -385,7 +375,7 @@ function chooseBotCard(seat) {
     return lowestSafe(safe.length ? safe : pool, seat);
   }
 
-  if (lastToPlay && currentWinner !== seat && !bidder) {
+  if (lastToPlay && currentWinner !== seat && !bidder && teamOf(currentWinner) === 1) {
     const points = legal.filter(c => isPointThrow(c) && !beats(c, winningPlay.card, leadSuit));
     if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
   }
@@ -581,6 +571,7 @@ function canClaimRest(seat) {
 function claimRest(seat) {
   if (!canClaimRest(seat)) return false;
   clearTimeout(botTimer); clearTimeout(revealTimer);
+  game.claimReveal = game.hands.map(hand => hand.map(card => ({ ...card })));
   const remaining = game.hands.flatMap(hand => hand.splice(0));
   const points = remaining.reduce((total, card) => total + cardPoints(card), 0);
   game.handPoints[seat] += points;
@@ -658,6 +649,7 @@ function publicState(seat) {
     chat: game.chat,
     winner: game.winner,
     canClaimRest: canClaimRest(seat),
+    claimReveal: game.claimReveal,
   };
 }
 function getSession(token) { return sessions.get(String(token || '')) || null; }
