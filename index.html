@@ -3525,6 +3525,8 @@
 .claim-reveal-cards { display:flex; justify-content:center; min-height:48px; overflow:visible; }
 .claim-reveal-cards .card { --card-w:34px; --card-h:48px; margin-left:-16px; flex:0 0 auto; }
 .claim-reveal-cards .card:first-child { margin-left:0; }
+.bitter-bunch { color:#f4dfb0; border-color:rgba(244,223,176,.28); background:rgba(91,44,19,.7); }
+.bitter-bunch:hover:not(:disabled) { background:rgba(118,56,22,.88); }
 @media (min-width: 761px) {
   .game-main { grid-template-rows:minmax(0,1fr) auto !important; }
 }
@@ -3548,15 +3550,31 @@
   body { position:static !important; inset:auto !important; }
   .app { position:relative !important; left:auto !important; top:auto !important; width:100% !important; height:auto !important; min-height:100vh !important; max-width:none !important; margin:0 !important; padding:0 !important; transform:none !important; transform-origin:center !important; overflow:visible !important; grid-template-rows:auto auto !important; }
 }
+@media (max-width: 480px) {
+  .game-sidebar { grid-template-columns:1fr !important; }
+  .game-sidebar .sidebar-panel, .game-sidebar .chat-panel, .sidebar-actions { grid-column:1 / -1; min-width:0; }
+  .sidebar-panel { min-height:auto !important; }
+  .sidebar-heading { font-size:11px !important; }
+  .trump-display, .bid-winner-display { min-height:48px !important; font-size:13px !important; }
+  .bid-winner-display strong { font-size:28px !important; }
+  .sidebar-scoreboard .team-score { min-height:34px; padding:7px 10px !important; }
+  .sidebar-scoreboard .sidebar-score-name { font-size:12px !important; }
+  .sidebar-scoreboard .score-value { font-size:22px !important; }
+  .topbar { min-width:0; }
+  .brand, .brand-copy { min-width:0; }
+  .brand-title-row { flex-wrap:wrap; }
+  .brand h1 { max-width:100%; font-size:clamp(16px,7vw,24px) !important; white-space:normal; overflow-wrap:anywhere; }
+  .brand p { display:none; }
+}
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.22">
+<body data-theme="classic" data-version="1.1.23">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.22</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.23</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3594,7 +3612,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.22";
+const APP_VERSION="1.1.23";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3720,6 +3738,7 @@ renderControls=function(){
   renderControlsWithoutDuplicates();
   const s=state.data;if(!s)return;
   [...els.controls.querySelectorAll("button")].forEach(button=>{if(["Start Game","Choose Trump"].includes(button.textContent.trim()))button.remove();});
+  if(s.phase==="bidding"){const votes=s.bitterVotes||[],bitter=document.createElement("button");bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});els.controls.appendChild(bitter);}
   if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}
 };
 openTrumpPicker=function(){
