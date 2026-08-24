@@ -3577,6 +3577,24 @@ async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat"
 function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,600);state.heartbeat=setInterval(heartbeat,2200);poll();}
 const showModal=openModal;
 openModal=html=>showModal(String(html).replaceAll("â€¢","&bull;").replaceAll("â€”","-"));
+renderKittyStage=function(s){
+  if(!els.kittyStage)return;
+  const visible=s.phase==="pickup"&&s.highBidder===state.seat&&!s.kittyAccepted&&Array.isArray(s.kitty)&&s.kitty.length>0;
+  els.kittyStage.hidden=!visible;
+  if(!visible){els.kittyStage.innerHTML="";els.kittyStage.classList.remove("acceptable");els.kittyStage.onclick=null;els.kittyStage.onkeydown=null;return;}
+  els.kittyStage.classList.add("acceptable");
+  els.kittyStage.setAttribute("role","button");els.kittyStage.setAttribute("tabindex","0");
+  els.kittyStage.innerHTML=`<div class="kitty-stage-title">Kitty - ${s.kitty.length} cards</div><div class="kitty-stage-cards">${s.kitty.map(c=>cardHtml(c,"kitty-stage-card")).join("")}</div><div class="kitty-stage-hint">Click the kitty to add these cards to your hand</div>`;
+  const accept=async()=>{if(state.data?.phase!=="pickup"||state.data?.highBidder!==state.seat||state.data?.kittyAccepted)return;await send({action:"acceptKitty"});if(state.data?.phase==="pickup"&&state.data?.highBidder===state.seat&&state.data?.kittyAccepted)openTrumpPicker();};
+  els.kittyStage.onclick=accept;els.kittyStage.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();accept();}};
+};
+openTrumpPicker=function(){
+  const s=state.data;
+  if(!s||s.phase!=="pickup"||s.highBidder!==state.seat||!s.kittyAccepted){showToast("Accept the kitty before choosing trump.");return;}
+  const choices=["red","yellow","green","black","none"];
+  openModal(`<h2>Choose Trump</h2><p class="autotrump-note">Choose a trump color.</p><div class="color-choices">${choices.map(choice=>`<button type="button" class="color-choice ${choice==="none"?"no-trump":choice}" data-trump="${choice}">${choice==="none"?"No Trump":choice[0].toUpperCase()+choice.slice(1)}</button>`).join("")}</div>`);
+  els.modal.querySelectorAll("[data-trump]").forEach(button=>button.onclick=async()=>{try{const data=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,action:"trump",trump:button.dataset.trump})});state.data=data.state;closeModal();render();}catch(error){showToast(error.message);}});
+};
 const renderGame=render;
 render=function(){renderGame();if(els.bidWinnerValue.textContent==="â€”")els.bidWinnerValue.textContent="-";};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
