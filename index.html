@@ -3517,15 +3517,22 @@
   .trump-picker-bar strong { width:100%; text-align:center; }
   .trump-picker-bar .color-choice { min-width:50px; padding:6px 5px; }
 }
+/* Portrait phones use the normal, readable page layout.  The former build
+   rotated the entire app 90 degrees, which clipped the left-hand text. */
+@media (max-width: 760px) and (orientation: portrait) {
+  html, body { width:auto !important; height:auto !important; min-height:100% !important; overflow-x:hidden !important; overflow-y:auto !important; }
+  body { position:static !important; inset:auto !important; }
+  .app { position:relative !important; left:auto !important; top:auto !important; width:100% !important; height:auto !important; min-height:100vh !important; max-width:none !important; margin:0 !important; padding:0 !important; transform:none !important; transform-origin:center !important; overflow:visible !important; grid-template-rows:auto auto !important; }
+}
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.16">
+<body data-theme="classic" data-version="1.1.17">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.16</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.17</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3563,7 +3570,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.16";
+const APP_VERSION="1.1.17";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
