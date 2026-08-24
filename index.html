@@ -3500,10 +3500,14 @@
 .trump-picker-bar { position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:40; display:flex; align-items:center; justify-content:center; gap:7px; max-width:calc(100% - 24px); padding:8px 10px; border:1px solid var(--gold); border-radius:12px; background:rgba(18,12,4,.95); box-shadow:0 8px 22px rgba(0,0,0,.45); }
 .trump-picker-bar strong { color:var(--gold); white-space:nowrap; font-size:12px; }
 .trump-picker-bar .color-choice { min-width:58px; padding:7px 8px; font-size:11px; }
-.game-main > .chat-panel { min-height:112px; margin:0; }
-.game-main > .chat-panel .chat-messages { min-height:58px; max-height:92px; }
+.game-main > .chat-panel { height:42px; min-height:42px; margin:0; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:7px; padding:4px 7px; overflow:hidden; }
+.game-main > .chat-panel .chat-heading { display:none; }
+.game-main > .chat-panel .chat-messages { min-width:0; min-height:0; max-height:28px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.game-main > .chat-panel .chat-message { display:inline; margin-right:12px; }
+.game-main > .chat-panel .chat-compose { display:flex; width:188px; min-width:150px; gap:5px; }
+.game-main > .chat-panel .chat-compose input { min-width:0; }
 @media (min-width: 761px) {
-  .game-main { grid-template-rows:minmax(0,1fr) auto minmax(112px,auto); }
+  .game-main { grid-template-rows:minmax(0,1fr) auto 42px; }
 }
 @media (max-width: 760px) {
   .app, .game-layout { width:100%; max-width:100%; margin-left:0; margin-right:0; overflow-x:hidden; }
@@ -3511,8 +3515,9 @@
   .game-sidebar { display:grid !important; grid-template-columns:repeat(3,minmax(0,1fr)) !important; min-width:0; }
   .sidebar-actions { display:grid !important; grid-column:1 / -1; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; }
   .sidebar-actions .btn { width:100%; min-width:0; white-space:normal; }
-  .game-main { grid-template-rows:minmax(270px,1fr) auto 118px !important; min-width:0; }
-  .game-main > .chat-panel { min-width:0; min-height:118px; border-radius:12px; }
+  .game-main { grid-template-rows:minmax(270px,1fr) auto 42px !important; min-width:0; }
+  .game-main > .chat-panel { min-width:0; min-height:42px; height:42px; border-radius:12px; }
+  .game-main > .chat-panel .chat-compose { width:142px; min-width:118px; }
   .trump-picker-bar { top:8px; gap:4px; padding:6px; flex-wrap:wrap; }
   .trump-picker-bar strong { width:100%; text-align:center; }
   .trump-picker-bar .color-choice { min-width:50px; padding:6px 5px; }
@@ -3526,13 +3531,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.17">
+<body data-theme="classic" data-version="1.1.18">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.17</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.18</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3570,7 +3575,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.17";
+const APP_VERSION="1.1.18";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3633,7 +3638,26 @@ const renderControlsBase=renderControls;
 renderControls=function(){renderControlsBase();const s=state.data;if(s?.phase==="discard"&&s.highBidder===state.seat){const change=document.createElement("button");change.type="button";change.className="btn";change.textContent="Change Trump";change.onclick=async()=>{await send({action:"changeTrump"});if(state.data?.phase==="pickup")openTrumpPicker();};els.controls.prepend(change);}};
 const originalPromptText=promptText;
 promptText=function(s){return originalPromptText(s).replaceAll("Ã¢â‚¬â€","-").replaceAll("Ã¢â‚¬Â¢","•");};
-function openSettings(){openModal(`<h2>Settings</h2><p class="autotrump-note">Choose the table appearance.</p><div class="color-choices"><button class="btn primary" data-theme-choice="classic">Classic</button><button class="btn" data-theme-choice="night">Night</button></div>`);els.modal.querySelectorAll("[data-theme-choice]").forEach(button=>button.onclick=()=>{document.body.dataset.theme=button.dataset.themeChoice;localStorage.setItem("juddRookTheme",button.dataset.themeChoice);closeModal();});}
+function openSettings(){
+  const key="juddRookSettings";
+  const saved=JSON.parse(localStorage.getItem(key)||"{}");
+  const pref={theme:document.body.dataset.theme||"classic",rookRank:"10.5",bidStart:"150",allowNoTrump:true,soundEnabled:true,showStats:true,biddingEnabled:true,aiDifficulty:"normal",botSpeed:"normal",winScore:"1000",userName:state.name||"",bot1:"Cristi",bot2:"Cindy",...saved};
+  els.modal.className="modal settings-modal";
+  openModal(`<h2>Game settings</h2><p class="autotrump-note">Three-handed Judd Rook uses three fixed seats.</p><div class="settings-grid">
+    <div class="field full"><label>Table theme</label><div class="theme-choices"><label class="theme-choice"><input type="radio" name="themeSetting" value="classic" ${pref.theme==="classic"?"checked":""}><span class="theme-preview classic"></span><strong>Classic Table — Default</strong><small>Traditional green felt and wood table.</small></label><label class="theme-choice"><input type="radio" name="themeSetting" value="casual" ${pref.theme==="casual"?"checked":""}><span class="theme-preview casual"></span><strong>Casual Table</strong><small>Blue felt and lighter controls.</small></label></div></div>
+    <div class="field"><label for="rookRankSetting">Rook rank</label><select id="rookRankSetting"><option value="10.5" ${pref.rookRank==="10.5"?"selected":""}>10.5 — between 10 and 11</option><option value="high" ${pref.rookRank==="high"?"selected":""}>High Trump</option><option value="low" ${pref.rookRank==="low"?"selected":""}>Low Trump</option></select></div>
+    <div class="field"><label for="bidStartSetting">Default bid</label><select id="bidStartSetting">${[120,125,130,135,140,145,150,155,160].map(v=>`<option value="${v}" ${String(v)===String(pref.bidStart)?"selected":""}>${v}</option>`).join("")}</select></div>
+    <div class="field"><label for="aiDifficultySetting">AI difficulty</label><select id="aiDifficultySetting">${["easy","normal","hard"].map(v=>`<option value="${v}" ${v===pref.aiDifficulty?"selected":""}>${v[0].toUpperCase()+v.slice(1)}</option>`).join("")}</select></div>
+    <div class="field"><label for="botSpeedSetting">Bot play speed</label><select id="botSpeedSetting">${["slow","normal","fast"].map(v=>`<option value="${v}" ${v===pref.botSpeed?"selected":""}>${v[0].toUpperCase()+v.slice(1)}</option>`).join("")}</select></div>
+    <div class="field"><label for="winScoreSetting">Points to win</label><select id="winScoreSetting">${[300,500,700,1000].map(v=>`<option value="${v}" ${String(v)===String(pref.winScore)?"selected":""}>${v} points</option>`).join("")}</select></div>
+    <div class="field"><label for="userNameSetting">Your name</label><input id="userNameSetting" maxlength="18" value="${escapeHtml(pref.userName)}"></div>
+    <div class="field"><label for="bot1Setting">Bot 1</label><input id="bot1Setting" maxlength="18" value="${escapeHtml(pref.bot1)}"></div>
+    <div class="field"><label for="bot2Setting">Bot 2</label><input id="bot2Setting" maxlength="18" value="${escapeHtml(pref.bot2)}"></div>
+    <div class="field full settings-check-row"><label class="checkbox-setting"><input id="allowNoTrumpSetting" type="checkbox" ${pref.allowNoTrump?"checked":""}> Allow No Trump</label><label class="checkbox-setting"><input id="soundEnabledSetting" type="checkbox" ${pref.soundEnabled?"checked":""}> Sound effects</label><label class="checkbox-setting"><input id="showStatsSetting" type="checkbox" ${pref.showStats?"checked":""}> Game stats after two hands</label><label class="checkbox-setting"><input id="biddingEnabledSetting" type="checkbox" ${pref.biddingEnabled?"checked":""}> Bot bidding</label></div>
+  </div><div class="rules-note">1s: 15 • 5s: 5 • 10s/14s: 10 • Rook: 20 • Last trick: 20.</div><div class="modal-actions"><button class="btn" id="cancelSettings">Cancel</button><button class="btn primary" id="saveSettings">Save Settings</button></div>`);
+  document.getElementById("cancelSettings").onclick=closeModal;
+  document.getElementById("saveSettings").onclick=()=>{const read=id=>document.getElementById(id);const chosen=els.modal.querySelector('input[name="themeSetting"]:checked').value;const next={theme:chosen,rookRank:read("rookRankSetting").value,bidStart:read("bidStartSetting").value,allowNoTrump:read("allowNoTrumpSetting").checked,soundEnabled:read("soundEnabledSetting").checked,showStats:read("showStatsSetting").checked,biddingEnabled:read("biddingEnabledSetting").checked,aiDifficulty:read("aiDifficultySetting").value,botSpeed:read("botSpeedSetting").value,winScore:read("winScoreSetting").value,userName:read("userNameSetting").value.trim(),bot1:read("bot1Setting").value.trim(),bot2:read("bot2Setting").value.trim()};localStorage.setItem(key,JSON.stringify(next));localStorage.setItem("juddRookTheme",chosen);document.body.dataset.theme=chosen;closeModal();showToast("Settings saved");};
+}
 const chatPanel=document.querySelector(".chat-panel");
 if(chatPanel)document.querySelector(".game-main").appendChild(chatPanel);
 const savedTheme=localStorage.getItem("juddRookTheme");if(savedTheme)document.body.dataset.theme=savedTheme;
