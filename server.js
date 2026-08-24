@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.24';
+const VERSION = '1.1.25';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -61,6 +61,7 @@ const game = {
   chat: [],
   claimReveal: null,
   bitterVotes: [false, false, false],
+  misdealSeats: [],
   prompt: 'Choose a player to begin.',
 };
 
@@ -139,6 +140,7 @@ function resetHand() {
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.bitterVotes = [false, false, false]; game.trick = []; game.revealUntil = 0;
   game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
   createDeal();
+  game.misdealSeats = game.hands.map((hand, seat) => hand.reduce((total, card) => total + cardPoints(card), 0) === 0 ? seat : -1).filter(seat => seat >= 0);
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
   scheduleBotBidIfNeeded();
 }
@@ -334,7 +336,10 @@ function lowestSafe(cards, seat) {
   })[0];
 }
 function chooseBotCard(seat) {
-  const legal = legalCards(seat);
+  const rawLegal = legalCards(seat);
+  const legal = game.trump && game.trump !== 'none' && game.hands[seat].length <= 2
+    ? (() => { const nonTrump = rawLegal.filter(card => effectiveSuit(card) !== game.trump); return nonTrump.length ? nonTrump : rawLegal; })()
+    : rawLegal;
   if (!legal.length) return null;
   const bidder = seat === game.highBidder;
   const lastToPlay = game.trick.length === 2;
@@ -408,16 +413,32 @@ function beginGame() {
   game.dealer = Math.floor(Math.random() * 3);
   resetHand();
 }
+function botShouldVoteBitter(seat) {
+  const hand = game.hands[seat] || [];
+  const pointTotal = hand.reduce((total, card) => total + cardPoints(card), 0);
+  if (!pointTotal) return true;
+  const suits = SUITS.map(suit => hand.filter(card => !card.rook && card.suit === suit));
+  const maxSuit = Math.max(...suits.map(cards => cards.length));
+  const hasFourWithOne = suits.some(cards => cards.length >= 4 && cards.some(card => card.value === 1));
+  const premium = hand.filter(card => card.rook || card.value === 1 || card.value === 14 || card.value === 13 || card.value === 12 || cardPoints(card) > 0).length;
+  return maxSuit <= 3 || (!hasFourWithOne && premium <= 4);
+}
 function voteBitterBunch(seat) {
   if (game.phase !== 'bidding' || game.highBid) return false;
   game.bitterVotes[seat] = true;
-  for (let i = 0; i < 3; i++) if (game.bot[i]) game.bitterVotes[i] = true;
+  for (let i = 0; i < 3; i++) if (game.bot[i] && botShouldVoteBitter(i)) game.bitterVotes[i] = true;
   if (game.bitterVotes.every(Boolean)) {
     game.prompt = 'Bitter Bunch agreed — redealing.';
     resetHand();
   } else {
     game.prompt = `Bitter Bunch: ${game.bitterVotes.filter(Boolean).length}/3 players agree.`;
   }
+  return true;
+}
+function redealMisdeal(seat) {
+  if (game.phase !== 'bidding' || game.highBid || !game.misdealSeats.includes(seat)) return false;
+  game.prompt = `${playerName(seat)} has a misdeal — redealing.`;
+  resetHand();
   return true;
 }
 function recordBid(seat, bid) {
@@ -665,6 +686,7 @@ function publicState(seat) {
     canClaimRest: canClaimRest(seat),
     claimReveal: game.claimReveal,
     bitterVotes: game.bitterVotes,
+    canRedeal: game.phase === 'bidding' && !game.highBid && game.misdealSeats.includes(seat),
   };
 }
 function getSession(token) { return sessions.get(String(token || '')) || null; }
@@ -727,6 +749,7 @@ async function api(req, res) {
     let ok = true;
     if (data.action === 'start') beginGame();
     else if (data.action === 'bitterBunch') ok = voteBitterBunch(s.seat);
+    else if (data.action === 'redeal') ok = redealMisdeal(s.seat);
     else if (data.action === 'bid') {
       if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false;
       else { const bid = Number(data.bid); const min = minLegalBid(); if (!Number.isFinite(bid) || bid < min || bid > 400 || (bid > 200 && bid < 400)) ok = false; else { recordBid(s.seat, bid); advanceBidding(); } }
