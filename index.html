@@ -3518,6 +3518,13 @@
 .discard-selection-card:hover { z-index:40 !important; margin-top:-8px; }
 .discard-selection-card .card { width:var(--card-w); height:var(--card-h); margin:0 !important; transform:none !important; pointer-events:none; }
 .flying-to-kitty { position:fixed !important; z-index:9999 !important; margin:0 !important; pointer-events:none !important; transition:none !important; }
+.claim-reveal { margin:10px 0; padding:9px; border:1px solid rgba(229,183,79,.3); border-radius:10px; background:rgba(0,0,0,.18); }
+.claim-reveal h3 { margin:0 0 7px; color:var(--gold); font-size:13px; text-align:center; }
+.claim-reveal-row { margin-top:6px; }
+.claim-reveal-row strong { display:block; margin-bottom:3px; font-size:11px; }
+.claim-reveal-cards { display:flex; justify-content:center; min-height:48px; overflow:visible; }
+.claim-reveal-cards .card { --card-w:34px; --card-h:48px; margin-left:-16px; flex:0 0 auto; }
+.claim-reveal-cards .card:first-child { margin-left:0; }
 @media (min-width: 761px) {
   .game-main { grid-template-rows:minmax(0,1fr) auto !important; }
 }
@@ -3543,13 +3550,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.21">
+<body data-theme="classic" data-version="1.1.22">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.21</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.22</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3566,7 +3573,7 @@
       <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
       <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
-      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn danger" id="startButton">Start Game</button></div>
+      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button></div>
     </aside>
 
     <div class="game-main">
@@ -3587,7 +3594,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.21";
+const APP_VERSION="1.1.22";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3599,7 +3606,7 @@ function showToast(t){els.toast.textContent=t;els.toast.classList.add("show");cl
 function openModal(html){els.modal.innerHTML=html;els.modalBackdrop.classList.add("open");}
 function closeModal(){els.modalBackdrop.classList.remove("open");els.modal.innerHTML="";}
 async function api(path,options={}){const r=await fetch(API+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const d=await r.json();if(!r.ok||d.ok===false)throw new Error(d.message||"Request failed");return d;}
-function cardInner(c){if(c.rook)return '<div class="corner top"><span>R</span><span class="pip">&#9670;</span></div><div class="card-center"><div><div class="rook-bird">R</div><div class="rook-label">ROOK</div></div></div><div class="corner bottom"><span>R</span><span class="pip">&#9670;</span></div>';return `<div class="corner top"><span>${c.value}</span><span class="pip">&#9679;</span></div><div class="card-center"><div><div class="big-value">${c.value}</div><div class="suit-name">${c.suit}</div></div></div><div class="corner bottom"><span>${c.value}</span><span class="pip">&#9679;</span></div>`;}
+function cardInner(c){if(c.rook)return '<div class="corner top"><span>R</span></div><div class="card-center"><div><div class="rook-bird">R</div><div class="rook-label">ROOK</div></div></div><div class="corner bottom"><span>R</span></div>';return `<div class="corner top"><span>${c.value}</span></div><div class="card-center"><div><div class="big-value">${c.value}</div><div class="suit-name">${c.suit}</div></div></div><div class="corner bottom"><span>${c.value}</span></div>`;}
 function cardHtml(c,extra=""){return `<div class="card ${c.rook?"rook":c.suit} ${extra}">${cardInner(c)}</div>`;}
 function playerState(i){return state.data?.seats?.[i];}
 function render(){const s=state.data;if(!s)return;
@@ -3731,8 +3738,10 @@ const renderWithFittedHand=render;
 render=function(){renderWithFittedHand();fitExpandedHand();};
 const showScorePopupWithTeamTotals=showHandScorePopup;
 showHandScorePopup=function(s){showScorePopupWithTeamTotals(s);els.modal.querySelectorAll(".summary-card span").forEach(span=>{if(span.textContent.includes("Shared defender"))span.textContent="Defender-team total";});els.modal.querySelectorAll(".table-dialog-summary").forEach(note=>{if(note.textContent.includes("Defenders shared"))note.innerHTML=`<strong>Each defender receives ${s.lastHandResult?.defenderTotal||0} points.</strong>`;});};
+const showScorePopupWithClaimReveal=showHandScorePopup;
+showHandScorePopup=function(s){showScorePopupWithClaimReveal(s);if(!Array.isArray(s.claimReveal)||!s.claimReveal.length)return;const reveal=document.createElement("section");reveal.className="claim-reveal";reveal.innerHTML=`<h3>Remaining Cards — Claimed by ${escapeHtml(playerState(s.highBidder)?.name||"Bidder")}</h3>${s.claimReveal.map((hand,seat)=>`<div class="claim-reveal-row"><strong>${escapeHtml(playerState(seat)?.name||"")}</strong><div class="claim-reveal-cards">${hand.map(card=>cardHtml(card)).join("")}</div></div>`).join("")}`;els.modal.querySelector(".modal-actions")?.before(reveal);};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
-document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
+document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
 </body>
