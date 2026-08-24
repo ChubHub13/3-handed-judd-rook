@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.23';
+const VERSION = '1.1.24';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -409,7 +409,7 @@ function beginGame() {
   resetHand();
 }
 function voteBitterBunch(seat) {
-  if (game.phase !== 'bidding') return false;
+  if (game.phase !== 'bidding' || game.highBid) return false;
   game.bitterVotes[seat] = true;
   for (let i = 0; i < 3; i++) if (game.bot[i]) game.bitterVotes[i] = true;
   if (game.bitterVotes.every(Boolean)) {
@@ -422,6 +422,7 @@ function voteBitterBunch(seat) {
 }
 function recordBid(seat, bid) {
   game.highBid = bid;
+  game.bitterVotes = [false, false, false];
   game.highBidder = seat;
   game.lastBidderName = playerName(seat);
   game.bidHistory.push({ seat, bid, passed: false });
