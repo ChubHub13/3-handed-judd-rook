@@ -3456,6 +3456,25 @@
   }
   .hand .card { margin-left: calc(var(--card-w) * -0.25) !important; }
 }
+/* Match Rook Solitaire's compact-table hand exactly. */
+@media (max-height: 520px) and (orientation: landscape) {
+  :root { --card-w: clamp(44px, 7.4vh, 62px); --card-h: calc(var(--card-w) * 1.42); }
+  .hand-zone {
+    height: 86px !important;
+    bottom: 1px !important;
+    overflow: visible !important;
+  }
+  .hand {
+    height: auto !important;
+    width: min(96%, 1120px) !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    padding: 8px 5px 0 !important;
+    overflow: visible !important;
+  }
+  .hand .card { margin-left: -13px !important; }
+  .hand .card:first-child { margin-left: 0 !important; }
+}
 </style>
 </head>
 <body data-theme="classic" data-version="1.1.14">
