@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.14';
+const VERSION = '1.1.15';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -483,6 +483,17 @@ function chooseTrump(seat, trump) {
   game.prompt = `${playerName(seat)} chose ${trump === 'none' ? 'No Trump' : `${trump} trump`}. Return 9 cards to the kitty.`;
   return true;
 }
+
+function changeTrump(seat) {
+  // The bidder may reconsider before the kitty has been returned.
+  if (game.phase !== 'discard' || game.highBidder !== seat || !game.kittyAccepted || game.trick.length) return false;
+  game.trump = null;
+  game.selectedDiscards = [];
+  game.phase = 'pickup';
+  sortHand(game.hands[seat]);
+  game.prompt = `${playerName(seat)} may choose a different trump before returning the kitty.`;
+  return true;
+}
 function selectDiscards(seat, ids) {
   if (game.phase !== 'discard' || game.highBidder !== seat || !Array.isArray(ids)) return false;
   const unique = [...new Set(ids)].filter(id => game.hands[seat].some(c => c.id === id));
@@ -685,6 +696,7 @@ async function api(req, res) {
       if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false; else { passBid(s.seat); advanceBidding(); }
     } else if (data.action === 'acceptKitty') ok = acceptKitty(s.seat);
     else if (data.action === 'trump') ok = chooseTrump(s.seat, data.trump);
+    else if (data.action === 'changeTrump') ok = changeTrump(s.seat);
     else if (data.action === 'selectDiscard' || data.action === 'selectDiscards') ok = selectDiscards(s.seat, data.cardIds);
     else if (data.action === 'discard') { ok = selectDiscards(s.seat, data.cardIds); if (ok) ok = finishDiscard(s.seat); }
     else if (data.action === 'play') ok = playCard(s.seat, data.cardId);
