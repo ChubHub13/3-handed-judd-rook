@@ -3487,6 +3487,13 @@
   .player.south { bottom: calc(var(--card-h) + 58px); }
 }
 </style>
+<style>
+/* Polling refreshes the hand.  Keep the hover lift steady, not animated. */
+.hand .card { transition: filter .16s ease, opacity .16s ease, box-shadow .16s ease; }
+.sidebar-actions { display: flex; align-items: center; gap: 8px; }
+.sidebar-actions #changePlayerButton { order: 0; }
+.sidebar-actions #startButton { order: 1; }
+</style>
 </head>
 <body data-theme="classic" data-version="1.1.14">
 <main class="app">
@@ -3502,7 +3509,7 @@
       <div class="score-history-heading">Last Trick</div>
       <div class="score-history-list" id="scoreHistoryList"><span class="score-history-empty">No trick yet.</span></div>
     </section>
-    <div class="top-actions"><button class="btn small" id="changePlayerButton">Player</button></div>
+    <div class="top-actions"></div>
   </header>
 
   <div class="game-layout">
@@ -3511,7 +3518,7 @@
       <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
       <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
-      <div class="sidebar-actions"><button class="btn danger" id="startButton">Start Game</button></div>
+      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn danger" id="startButton">Start Game</button></div>
     </aside>
 
     <div class="game-main">
@@ -3568,6 +3575,8 @@ async function send(action){try{const d=await api("/api/action",{method:"POST",b
 async function poll(){if(!state.token)return;try{const d=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=d.state;render();}catch(e){showToast(e.message);clearInterval(state.poll);clearInterval(state.heartbeat);}}
 async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(e){}}
 function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,600);state.heartbeat=setInterval(heartbeat,2200);poll();}
+const showModal=openModal;
+openModal=html=>showModal(String(html).replaceAll("â€¢","&bull;").replaceAll("â€”","-"));
 const renderGame=render;
 render=function(){renderGame();if(els.bidWinnerValue.textContent==="â€”")els.bidWinnerValue.textContent="-";};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
