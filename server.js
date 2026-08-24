@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.21';
+const VERSION = '1.1.23';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -60,6 +60,7 @@ const game = {
   lastSeen: [0, 0, 0],
   chat: [],
   claimReveal: null,
+  bitterVotes: [false, false, false],
   prompt: 'Choose a player to begin.',
 };
 
@@ -111,7 +112,7 @@ function resetGame() {
   game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
   game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
   game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = [];
-  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.prompt = 'Choose a player to begin.';
+  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.bitterVotes = [false, false, false]; game.prompt = 'Choose a player to begin.';
 }
 
 function ensureBots() {
@@ -135,7 +136,7 @@ function resetHand() {
   game.currentBidder = (game.dealer + 1) % 3;
   game.phase = 'bidding';
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
-  game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.trick = []; game.revealUntil = 0;
+  game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.bitterVotes = [false, false, false]; game.trick = []; game.revealUntil = 0;
   game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
   createDeal();
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
@@ -407,6 +408,18 @@ function beginGame() {
   game.dealer = Math.floor(Math.random() * 3);
   resetHand();
 }
+function voteBitterBunch(seat) {
+  if (game.phase !== 'bidding') return false;
+  game.bitterVotes[seat] = true;
+  for (let i = 0; i < 3; i++) if (game.bot[i]) game.bitterVotes[i] = true;
+  if (game.bitterVotes.every(Boolean)) {
+    game.prompt = 'Bitter Bunch agreed — redealing.';
+    resetHand();
+  } else {
+    game.prompt = `Bitter Bunch: ${game.bitterVotes.filter(Boolean).length}/3 players agree.`;
+  }
+  return true;
+}
 function recordBid(seat, bid) {
   game.highBid = bid;
   game.highBidder = seat;
@@ -650,6 +663,7 @@ function publicState(seat) {
     winner: game.winner,
     canClaimRest: canClaimRest(seat),
     claimReveal: game.claimReveal,
+    bitterVotes: game.bitterVotes,
   };
 }
 function getSession(token) { return sessions.get(String(token || '')) || null; }
@@ -711,6 +725,7 @@ async function api(req, res) {
     game.live[s.seat] = true; game.bot[s.seat] = false; game.lastSeen[s.seat] = now();
     let ok = true;
     if (data.action === 'start') beginGame();
+    else if (data.action === 'bitterBunch') ok = voteBitterBunch(s.seat);
     else if (data.action === 'bid') {
       if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false;
       else { const bid = Number(data.bid); const min = minLegalBid(); if (!Number.isFinite(bid) || bid < min || bid > 400 || (bid > 200 && bid < 400)) ok = false; else { recordBid(s.seat, bid); advanceBidding(); } }
