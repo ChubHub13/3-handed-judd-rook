@@ -3506,9 +3506,9 @@
 .sidebar-actions #startButton { grid-column:1 / -1; }
 /* Once the kitty joins the bidder's hand, show every card through a
    horizontal swipe/scroll lane instead of letting either end fall off-table. */
-.hand-zone.expanded-hand { overflow-x:auto !important; overflow-y:hidden !important; touch-action:pan-x; scrollbar-color:var(--gold) rgba(0,0,0,.25); scrollbar-width:thin; }
-.hand-zone.expanded-hand .hand { width:max-content !important; min-width:100% !important; justify-content:flex-start !important; padding:10px 12px 14px !important; }
-.hand-zone.expanded-hand .hand .card { margin-left:6px !important; flex:0 0 auto; }
+.hand-zone.expanded-hand { overflow:visible !important; }
+.hand-zone.expanded-hand .hand { width:100% !important; min-width:0 !important; justify-content:center !important; padding:10px 12px 14px !important; }
+.hand-zone.expanded-hand .hand .card { margin-left:var(--expanded-gap,-28px) !important; flex:0 0 auto; }
 .hand-zone.expanded-hand .hand .card:first-child { margin-left:0 !important; }
 /* Solitaire-style discard selection: cards leave the hand and fan into the
    center kitty pile while a short flight animation shows the move. */
@@ -3543,13 +3543,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.20">
+<body data-theme="classic" data-version="1.1.21">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.20</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.21</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3587,7 +3587,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.20";
+const APP_VERSION="1.1.21";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0};
@@ -3704,6 +3704,33 @@ toggleDiscard=function(cardId){
   if(typeof flying.animate!=="function"){flying.style.transform=end;setTimeout(()=>flying.remove(),360);return;}
   flying.animate([{transform:"translate3d(0,0,0) rotate(0deg) scale(1)",opacity:1},{transform:end,opacity:.95}],{duration:360,easing:"cubic-bezier(.2,.72,.2,1)",fill:"forwards"}).finished.catch(()=>undefined).finally(()=>flying.remove());
 };
+const sendWithSingleClick=send;
+send=async function(action){if(state.actionBusy)return;state.actionBusy=true;try{await sendWithSingleClick(action);}finally{state.actionBusy=false;}};
+const pollWithoutActionRace=poll;
+poll=async function(){if(state.actionBusy)return;await pollWithoutActionRace();};
+const renderControlsWithoutDuplicates=renderControls;
+renderControls=function(){
+  renderControlsWithoutDuplicates();
+  const s=state.data;if(!s)return;
+  [...els.controls.querySelectorAll("button")].forEach(button=>{if(["Start Game","Choose Trump"].includes(button.textContent.trim()))button.remove();});
+  if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}
+};
+openTrumpPicker=function(){
+  const s=state.data;if(!s||s.phase!=="pickup"||s.highBidder!==state.seat||!s.kittyAccepted)return;
+  document.getElementById("trumpPickerBar")?.remove();
+  const choices=["red","yellow","green","black","none"],bar=document.createElement("div");bar.id="trumpPickerBar";bar.className="trump-picker-bar";bar.innerHTML=`<strong>Choose Trump</strong>${choices.map(choice=>`<button type="button" class="color-choice ${choice==="none"?"no-trump":choice}" data-trump="${choice}">${choice==="none"?"No Trump":choice[0].toUpperCase()+choice.slice(1)}</button>`).join("")}`;els.tableShell.appendChild(bar);
+  bar.querySelectorAll("[data-trump]").forEach(button=>button.onclick=async()=>{if(state.actionBusy)return;bar.querySelectorAll("button").forEach(item=>item.disabled=true);await send({action:"trump",trump:button.dataset.trump});if(state.data?.phase==="discard"){bar.remove();render();}else bar.querySelectorAll("button").forEach(item=>item.disabled=false);});
+};
+function fitExpandedHand(){
+  const zone=els.hand.parentElement,cards=[...els.hand.querySelectorAll(".card")];
+  if(!zone||cards.length<=12){els.hand.style.removeProperty("--expanded-gap");return;}
+  const cardWidth=cards[0].getBoundingClientRect().width,available=Math.max(1,zone.clientWidth-24),needed=(available-cardWidth)/(cards.length-1)-cardWidth,gap=Math.max(-cardWidth+16,Math.min(-8,needed));
+  els.hand.style.setProperty("--expanded-gap",`${gap}px`);
+}
+const renderWithFittedHand=render;
+render=function(){renderWithFittedHand();fitExpandedHand();};
+const showScorePopupWithTeamTotals=showHandScorePopup;
+showHandScorePopup=function(s){showScorePopupWithTeamTotals(s);els.modal.querySelectorAll(".summary-card span").forEach(span=>{if(span.textContent.includes("Shared defender"))span.textContent="Defender-team total";});els.modal.querySelectorAll(".table-dialog-summary").forEach(note=>{if(note.textContent.includes("Defenders shared"))note.innerHTML=`<strong>Each defender receives ${s.lastHandResult?.defenderTotal||0} points.</strong>`;});};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
