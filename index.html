@@ -3599,13 +3599,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.28">
+<body data-theme="classic" data-version="1.1.29">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.28</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.29</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3643,7 +3643,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.28";
+const APP_VERSION="1.1.29";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null};
@@ -3765,9 +3765,12 @@ const pollWithoutActionRace=poll;
 poll=async function(){if(state.actionBusy)return;await pollWithoutActionRace();};
 const renderControlsWithoutDuplicates=renderControls;
 renderControls=function(){
-  renderControlsWithoutDuplicates();
   const s=state.data;if(!s)return;
+  const existingBid=els.controls.querySelector(".bid-value-input"),currentMin=s.highBid?(s.highBid<200?s.highBid+5:400):150;
+  if(existingBid&&s.phase==="bidding"&&s.currentBidder===state.seat&&Number(existingBid.options[0]?.value)===currentMin)return;
+  renderControlsWithoutDuplicates();
   [...els.controls.querySelectorAll("button")].forEach(button=>{if(["Start Game","Choose Trump"].includes(button.textContent.trim()))button.remove();});
+  els.controls.querySelectorAll(".bitter-bunch-option").forEach(option=>option.remove());
   if(s.phase==="bidding"&&!s.highBid){[...els.controls.querySelectorAll("button")].find(button=>button.textContent.trim()==="Pass")?.remove();if(s.currentBidder===state.seat){const votes=s.bitterVotes||[],wrap=document.createElement("div"),bitter=document.createElement("button");wrap.className="bitter-bunch-option";bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});wrap.appendChild(bitter);els.controls.appendChild(wrap);}}
   const goDown=document.getElementById("goDownButton"),canGoDown=s.highBidder===state.seat&&["pickup","discard","playing","trickReveal"].includes(s.phase);if(goDown){goDown.hidden=!canGoDown;goDown.disabled=!canGoDown;}
   if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}

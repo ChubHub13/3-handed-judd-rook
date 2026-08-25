@@ -1,4 +1,4 @@
-# 3-Handed Judd Rook v1.1.28
+# 3-Handed Judd Rook v1.1.29
 
 Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; no accounts or room codes are used. Any player who has not joined is treated as a bot when the game starts, and a disconnected live seat can become a bot.
 
@@ -15,7 +15,7 @@ Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; 
 1. A player selects Daryl, Cristi, or Cindy and starts the game.
 2. The server deals 12 cards to each player and a 9-card kitty.
 3. Cards are sorted by color, then by number, matching the solitaire sorting approach.
-4. The bidding status is shown to every player. The selected bid remains stable while the live table refreshes.
+4. The bidding status is shown to every player. The selected bid remains stable while the live table refreshes, without duplicating bidding controls.
 5. When the bidder wins, the bidder sees the 9-card kitty on the table and clicks **Accept Kitty**.
 6. The 9 cards are added to the bidder's 12-card hand, making 21 cards.
 7. The bidder clicks **Choose Trump** and can choose Red, Yellow, Green, Black, or No Trump. The Rook follows the selected trump color (or Red in No Trump) and has the Solitaire 10.5 rank.
