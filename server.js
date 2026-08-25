@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.26';
+const VERSION = '1.1.27';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -419,6 +419,12 @@ function chooseBotCard(seat) {
         if (!suit || c.rook || c.value !== 1) return true;
         return ![0,1,2].some(op => op !== seat && !game.hands[op].some(x => effectiveSuit(x) === suit));
       });
+      const bidderSideSuit = bidderSideSuitToAvoidAfterDefenderWin(seat);
+      if (bidderSideSuit) {
+        const differentNonTrump = legal.filter(c => effectiveSuit(c) !== bidderSideSuit && effectiveSuit(c) !== game.trump);
+        const preferred = leads.filter(c => effectiveSuit(c) !== bidderSideSuit && effectiveSuit(c) !== game.trump);
+        if (differentNonTrump.length) leads = preferred.length ? preferred : differentNonTrump;
+      }
     }
     const safe = leads.filter(c => cardPoints(c) === 0);
     if (safe.length) return lowestSafe(safe, seat);
@@ -462,6 +468,15 @@ function chooseBotCard(seat) {
 
   const safeSluffs = legal.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
   return lowestSafe(safeSluffs.length ? safeSluffs : legal, seat);
+}
+
+function bidderSideSuitToAvoidAfterDefenderWin(seat) {
+  if (seat === game.highBidder || !game.lastTrick || game.lastTrick.winner !== seat) return null;
+  const bidderLead = game.lastTrick.plays?.[0];
+  if (!bidderLead || bidderLead.seat !== game.highBidder) return null;
+  const suit = effectiveSuit(bidderLead.card);
+  if (!suit || suit === game.trump) return null;
+  return suit;
 }
 
 function legalCardsKeepingFinalTrump(seat, legal) {
@@ -514,14 +529,15 @@ function botShouldVoteBitter(seat) {
   return maxSuit <= 3 || (!hasFourWithOne && premium <= 4);
 }
 function voteBitterBunch(seat) {
-  if (game.phase !== 'bidding' || game.highBid) return false;
+  if (game.phase !== 'bidding' || game.highBid || game.currentBidder !== seat || game.bitterVotes[seat]) return false;
   game.bitterVotes[seat] = true;
-  for (let i = 0; i < 3; i++) if (game.bot[i] && botShouldVoteBitter(i)) game.bitterVotes[i] = true;
   if (game.bitterVotes.every(Boolean)) {
     game.prompt = 'Bitter Bunch agreed — redealing.';
     resetHand();
   } else {
-    game.prompt = `Bitter Bunch: ${game.bitterVotes.filter(Boolean).length}/3 players agree.`;
+    game.currentBidder = (seat + 1) % 3;
+    game.prompt = `${playerName(game.currentBidder)} must bid or choose Bitter Bunch.`;
+    scheduleBotBidIfNeeded();
   }
   return true;
 }
@@ -561,15 +577,28 @@ function advanceBidding() {
 }
 function runBotBidding() {
   if (!game.started || game.phase !== 'bidding' || game.currentBidder === null || !game.bot[game.currentBidder]) return;
+  const seat = game.currentBidder;
   if (botBidIsSuspended(game.currentBidder)) {
-    passBid(game.currentBidder);
-    game.prompt = `${playerName(game.currentBidder)} must pass after being set twice.`;
+    if (!game.highBid) {
+      voteBitterBunch(seat);
+      return;
+    }
+    passBid(seat);
+    game.prompt = `${playerName(seat)} must pass after being set twice.`;
     advanceBidding();
     return;
   }
   const next = minLegalBid();
-  const maxBid = estimateMaxBid(game.hands[game.currentBidder]);
-  if (next <= 400 && next <= maxBid) recordBid(game.currentBidder, next); else passBid(game.currentBidder);
+  if (!game.highBid) {
+    if (botShouldVoteBitter(seat)) {
+      voteBitterBunch(seat);
+      return;
+    }
+    recordBid(seat, BID_START);
+  } else {
+    const maxBid = estimateMaxBid(game.hands[seat]);
+    if (next <= 400 && next <= maxBid) recordBid(seat, next); else passBid(seat);
+  }
   advanceBidding();
 }
 
@@ -725,6 +754,35 @@ function claimRest(seat) {
   scoreHand();
   return true;
 }
+function goDown(seat) {
+  if (!['pickup', 'discard', 'playing', 'trickReveal'].includes(game.phase) || game.highBidder !== seat) return false;
+  clearTimeout(botTimer); clearTimeout(revealTimer);
+  const bidder = game.highBidder;
+  const defenders = [0, 1, 2].filter(player => player !== bidder);
+  game.claimReveal = game.hands.map(hand => hand.map(card => ({ ...card })));
+  game.hands = [[], [], []];
+  game.trick = [];
+  game.selectedDiscards = [];
+  game.handPoints = [0, 0, 0];
+  game.scores[bidder] = Math.max(0, game.scores[bidder] - game.highBid);
+  recordBotBidResult(bidder, false);
+  game.lastHandResult = {
+    bid: game.highBid,
+    bidder,
+    bidderPoints: 0,
+    bidMade: false,
+    defenderTotal: 0,
+    defenderShares: defenders.map(player => ({ seat: player, name: playerName(player), points: 0 })),
+    totalPoints: 0,
+    wentDown: true
+  };
+  game.phase = 'scoring';
+  game.prompt = `${playerName(bidder)} went down and loses the ${game.highBid} bid.`;
+  const winner = game.scores.findIndex(score => score >= WIN_SCORE);
+  if (winner >= 0) { game.winner = winner; game.phase = 'gameover'; }
+  return true;
+}
+
 function scoreHand() {
   const lastWinner = game.lastTrick?.winner ?? game.leader;
   const kittyPoints = game.kitty.reduce((n, c) => n + cardPoints(c), 0) + 20;
@@ -863,7 +921,7 @@ async function api(req, res) {
       if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false;
       else { const bid = Number(data.bid); const min = minLegalBid(); if (!Number.isFinite(bid) || bid < min || bid > 400 || (bid > 200 && bid < 400)) ok = false; else { recordBid(s.seat, bid); advanceBidding(); } }
     } else if (data.action === 'pass') {
-      if (game.phase !== 'bidding' || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false; else { passBid(s.seat); advanceBidding(); }
+      if (game.phase !== 'bidding' || !game.highBid || game.currentBidder !== s.seat || game.bot[s.seat]) ok = false; else { passBid(s.seat); advanceBidding(); }
     } else if (data.action === 'acceptKitty') ok = acceptKitty(s.seat);
     else if (data.action === 'trump') ok = chooseTrump(s.seat, data.trump);
     else if (data.action === 'changeTrump') ok = changeTrump(s.seat);
@@ -871,6 +929,7 @@ async function api(req, res) {
     else if (data.action === 'discard') { ok = selectDiscards(s.seat, data.cardIds); if (ok) ok = finishDiscard(s.seat); }
     else if (data.action === 'play') ok = playCard(s.seat, data.cardId);
     else if (data.action === 'claimRest') ok = claimRest(s.seat);
+    else if (data.action === 'goDown') ok = goDown(s.seat);
     else if (data.action === 'chat') { const text = String(data.text || '').trim().slice(0, 240); if (text) game.chat.push({ name: playerName(s.seat), text, at: now() }); game.chat = game.chat.slice(-60); }
     else if (data.action === 'nextHand') { if (game.phase === 'scoring') resetHand(); else ok = false; }
     else if (data.action === 'newGame') { game.scores = [0,0,0]; game.botBidSetCounts = [0,0,0]; game.botBidBlockedThroughHand = [0,0,0]; game.handNumber = 0; game.started = false; game.winner = null; resetHand(); game.started = true; }
