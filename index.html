@@ -3599,13 +3599,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.27">
+<body data-theme="classic" data-version="1.1.28">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.27</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.28</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3622,7 +3622,7 @@
       <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
       <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
-      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button></div>
+      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button><button class="btn danger sidebar-go-down" id="goDownButton" hidden>Go Down</button></div>
     </aside>
 
     <div class="game-main">
@@ -3643,7 +3643,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.27";
+const APP_VERSION="1.1.28";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null};
@@ -3769,7 +3769,7 @@ renderControls=function(){
   const s=state.data;if(!s)return;
   [...els.controls.querySelectorAll("button")].forEach(button=>{if(["Start Game","Choose Trump"].includes(button.textContent.trim()))button.remove();});
   if(s.phase==="bidding"&&!s.highBid){[...els.controls.querySelectorAll("button")].find(button=>button.textContent.trim()==="Pass")?.remove();if(s.currentBidder===state.seat){const votes=s.bitterVotes||[],wrap=document.createElement("div"),bitter=document.createElement("button");wrap.className="bitter-bunch-option";bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});wrap.appendChild(bitter);els.controls.appendChild(wrap);}}
-  if(s.highBidder===state.seat&&["pickup","discard","playing","trickReveal"].includes(s.phase)){const down=document.createElement("button");down.type="button";down.className="btn danger";down.textContent="Go Down";down.onclick=()=>send({action:"goDown"});els.controls.appendChild(down);}
+  const goDown=document.getElementById("goDownButton"),canGoDown=s.highBidder===state.seat&&["pickup","discard","playing","trickReveal"].includes(s.phase);if(goDown){goDown.hidden=!canGoDown;goDown.disabled=!canGoDown;}
   if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}
 };
 openTrumpPicker=function(){
@@ -3793,7 +3793,7 @@ showHandScorePopup=function(s){showScorePopupWithClaimReveal(s);if(!Array.isArra
 const renderWithHandPoints=render;
 render=function(){renderWithHandPoints();const s=state.data;if(!s)return;for(let i=0;i<3;i++){const points=document.getElementById(`handPoints${i}`);if(points)points.textContent=`${s.handPoints?.[i]||0}`;}if(s.canRedeal&&state.lastMisdealHand!==s.handNumber){state.lastMisdealHand=s.handNumber;const hand=s.hands[state.seat]||[];openModal(`<h2>Misdeal</h2><p class="table-dialog-summary">Your hand has no point cards. You may request a redeal before bidding begins.</p><div class="misdeal-hand">${hand.map(card=>cardHtml(card)).join("")}</div><div class="modal-actions"><button class="btn primary" id="misdealRedeal">Re-Deal</button></div>`);document.getElementById("misdealRedeal").onclick=async()=>{await send({action:"redeal"});closeModal();};}};
 els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
-document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
+document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
 </body>
