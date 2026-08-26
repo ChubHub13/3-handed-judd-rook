@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.31';
+const VERSION = '1.1.32';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -54,6 +54,7 @@ const game = {
   handPoints: [0, 0, 0],
   tricksWon: [0, 0, 0],
   playedCards: [],
+  playHistory: [],
   lastHandResult: null,
   started: false,
   winner: null,
@@ -114,7 +115,7 @@ function resetGame() {
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = [];
   game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
   game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
-  game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.botBidSetCounts = [0, 0, 0]; game.botBidBlockedThroughHand = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = [];
+  game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.botBidSetCounts = [0, 0, 0]; game.botBidBlockedThroughHand = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = [];
   game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.bitterVotes = [false, false, false]; game.prompt = 'Choose a player to begin.';
 }
 
@@ -140,7 +141,7 @@ function resetHand() {
   game.phase = 'bidding';
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.bitterVotes = [false, false, false]; game.trick = []; game.revealUntil = 0;
-  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
+  game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
   createDeal();
   game.misdealSeats = game.hands.map((hand, seat) => hand.reduce((total, card) => total + cardPoints(card), 0) === 0 ? seat : -1).filter(seat => seat >= 0);
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
@@ -287,9 +288,33 @@ function chooseBotDiscards(hand, trump) {
     if (!bestPlan || score > bestPlan.score) bestPlan = { score, discards };
   }
 
-  return bestPlan ? bestPlan.discards : [...hand]
+  const discards = bestPlan ? bestPlan.discards : [...hand]
     .sort((a, b) => discardDesirability(a, trump) - discardDesirability(b, trump))
     .slice(0, KITTY_SIZE);
+  return avoidBadSingletonKeeps(hand, discards, trump);
+}
+
+function avoidBadSingletonKeeps(hand, discards, trump) {
+  const result = [...discards];
+  const discardIds = new Set(result.map(card => card.id));
+  const kept = () => hand.filter(card => !discardIds.has(card.id));
+  for (const suit of SUITS) {
+    if (suit === trump) continue;
+    const suitKept = kept().filter(card => botDiscardSuit(card, trump) === suit);
+    if (suitKept.length !== 1 || suitKept[0].rook || ![10, 14].includes(suitKept[0].value)) continue;
+    const badKeep = suitKept[0];
+    let replacement = result.find(card => botDiscardSuit(card, trump) === suit && !card.rook && ![10, 14].includes(card.value));
+    if (!replacement) {
+      const populated = new Set(kept().map(card => botDiscardSuit(card, trump)));
+      replacement = result.find(card => populated.has(botDiscardSuit(card, trump)) && card.id !== badKeep.id);
+    }
+    if (!replacement) continue;
+    const index = result.findIndex(card => card.id === replacement.id);
+    result[index] = badKeep;
+    discardIds.delete(replacement.id);
+    discardIds.add(badKeep.id);
+  }
+  return result;
 }
 
 function botDiscardSuit(card, trump) {
@@ -387,6 +412,35 @@ function wouldStrand14(seat, card) {
   return remain.length === 1 && remain[0].value === 14;
 }
 function isPointThrow(card) { return !!card && (card.rook || card.value === 10 || card.value === 5); }
+function isEstablishedWinner(seat, card) {
+  const leadSuit = effectiveSuit(card);
+  return [0, 1, 2].filter(other => other !== seat && teamOf(other) !== teamOf(seat)).every(other => {
+    const hand = game.hands[other] || [];
+    const followers = hand.filter(candidate => effectiveSuit(candidate) === leadSuit);
+    const responses = followers.length ? followers : hand;
+    return !responses.some(candidate => beats(candidate, card, leadSuit));
+  });
+}
+function botHasSideWinner(seat) {
+  return (game.hands[seat] || []).some(card => effectiveSuit(card) !== game.trump && isEstablishedWinner(seat, card));
+}
+function bidderSecondarySuit() {
+  const leads = game.playHistory.filter(play => play.seat === game.highBidder && play.led && effectiveSuit(play.card) !== game.trump);
+  return leads.length ? effectiveSuit(leads[0].card) : null;
+}
+function protectSluffCards(seat, cards) {
+  let pool = [...cards];
+  const nonPoints = pool.filter(card => cardPoints(card) === 0);
+  if (nonPoints.length) pool = nonPoints;
+  const nonWinners = pool.filter(card => !(!card.rook && card.value === 1) && !isEstablishedWinner(seat, card));
+  if (nonWinners.length) pool = nonWinners;
+  const secondSuit = bidderSecondarySuit();
+  if (seat !== game.highBidder && secondSuit && game.hands[seat].length > 3) {
+    const alternatives = pool.filter(card => effectiveSuit(card) !== secondSuit);
+    if (alternatives.length) pool = alternatives;
+  }
+  return pool;
+}
 function lowestSafe(cards, seat) {
   const pool = cards.length ? cards.slice() : [];
   const unstrand = pool.filter(c => !wouldStrand14(seat, c));
@@ -426,6 +480,8 @@ function chooseBotCard(seat) {
         if (differentNonTrump.length) leads = preferred.length ? preferred : differentNonTrump;
       }
     }
+    const established = leads.filter(card => isEstablishedWinner(seat, card));
+    if (established.length) return established.sort((a, b) => cardRank(b) - cardRank(a))[0];
     const safe = leads.filter(c => cardPoints(c) === 0);
     if (safe.length) return lowestSafe(safe, seat);
     return lowestSafe(leads.length ? leads : legal, seat);
@@ -433,6 +489,12 @@ function chooseBotCard(seat) {
 
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
+
+  // When void, use trump to regain the lead before cashing established winners.
+  if (teamOf(currentWinner) !== teamOf(seat) && botHasSideWinner(seat)) {
+    const trumps = legal.filter(card => effectiveSuit(card) === game.trump && beats(card, winningPlay.card, leadSuit));
+    if (trumps.length) return trumps.sort((a, b) => cardRank(a) - cardRank(b))[0];
+  }
 
   // The two defenders are a side.  Do not steal a teammate's trick just to
   // win it again; feed 5s, 10s, and the Rook only when that trick is secure.
@@ -444,7 +506,8 @@ function chooseBotCard(seat) {
       if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
     }
     const safe = pool.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
-    return lowestSafe(safe.length ? safe : pool, seat);
+    const protectedPool = protectSluffCards(seat, safe.length ? safe : pool);
+    return lowestSafe(protectedPool, seat);
   }
 
   if (lastToPlay && currentWinner !== seat && !bidder && teamOf(currentWinner) === 1) {
@@ -467,7 +530,7 @@ function chooseBotCard(seat) {
   }
 
   const safeSluffs = legal.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
-  return lowestSafe(safeSluffs.length ? safeSluffs : legal, seat);
+  return lowestSafe(protectSluffCards(seat, safeSluffs.length ? safeSluffs : legal), seat);
 }
 
 function bidderSideSuitToAvoidAfterDefenderWin(seat) {
@@ -647,13 +710,26 @@ function chooseTrump(seat, trump) {
 }
 
 function changeTrump(seat) {
-  // The bidder may reconsider before the kitty has been returned.
-  if (game.phase !== 'discard' || game.highBidder !== seat || !game.kittyAccepted || game.trick.length) return false;
+  if (game.highBidder !== seat || !game.kittyAccepted || game.trick.length || game.playedCards.length) return false;
+  if (game.phase === 'playing') {
+    game.hands[seat].push(...game.kitty);
+    game.kitty = [];
+  } else if (game.phase !== 'discard') return false;
   game.trump = null;
   game.selectedDiscards = [];
   game.phase = 'pickup';
   sortHand(game.hands[seat]);
   game.prompt = `${playerName(seat)} may choose a different trump before returning the kitty.`;
+  return true;
+}
+function changeKitty(seat) {
+  if (game.phase !== 'playing' || game.highBidder !== seat || game.trick.length || game.playedCards.length) return false;
+  game.hands[seat].push(...game.kitty);
+  game.kitty = [];
+  game.selectedDiscards = [];
+  game.phase = 'discard';
+  sortHand(game.hands[seat]);
+  game.prompt = `${playerName(seat)} may choose a different 9-card kitty before leading.`;
   return true;
 }
 function selectDiscards(seat, ids) {
@@ -712,6 +788,7 @@ function playCard(seat, cardId) {
   if (index < 0) return false;
   const card = game.hands[seat].splice(index, 1)[0];
   game.playedCards.push({ ...card });
+  game.playHistory.push({ seat, card: { ...card }, led: game.trick.length === 0 });
   game.trick.push({ seat, card });
   if (game.trick.length === 3) resolveTrick();
   else { game.turn = (seat + 1) % 3; game.prompt = `${playerName(game.turn)} to play.`; scheduleTurn(); }
@@ -719,6 +796,7 @@ function playCard(seat, cardId) {
 }
 function botPlay(seat) {
   if (game.phase !== 'playing' || game.turn !== seat || !game.bot[seat]) return;
+  if (canClaimRest(seat)) { claimRest(seat); return; }
   const card = chooseBotCard(seat);
   if (card) playCard(seat, card.id);
 }
@@ -834,6 +912,7 @@ function publicState(seat) {
     kitty: visibleKitty,
     kittyCount: game.kitty.length,
     kittyAccepted: game.kittyAccepted,
+    cardsPlayed: game.playedCards.length,
     selectedDiscards: seat === game.highBidder ? game.selectedDiscards : [],
     hands: [0,1,2].map(i => i === seat ? (game.hands[i] || []) : []),
     handCounts: game.hands.map(h => h.length),
@@ -925,6 +1004,7 @@ async function api(req, res) {
     } else if (data.action === 'acceptKitty') ok = acceptKitty(s.seat);
     else if (data.action === 'trump') ok = chooseTrump(s.seat, data.trump);
     else if (data.action === 'changeTrump') ok = changeTrump(s.seat);
+    else if (data.action === 'changeKitty') ok = changeKitty(s.seat);
     else if (data.action === 'selectDiscard' || data.action === 'selectDiscards') ok = selectDiscards(s.seat, data.cardIds);
     else if (data.action === 'discard') { ok = selectDiscards(s.seat, data.cardIds); if (ok) ok = finishDiscard(s.seat); }
     else if (data.action === 'play') ok = playCard(s.seat, data.cardId);
