@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.34';
+const VERSION = '1.1.35';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -55,6 +55,7 @@ const game = {
   tricksWon: [0, 0, 0],
   playedCards: [],
   playHistory: [],
+  humanSeatsThisHand: [false, false, false],
   lastHandResult: null,
   started: false,
   winner: null,
@@ -116,7 +117,7 @@ function resetGame() {
   game.passed = [false, false, false]; game.hands = [[], [], []]; game.kitty = []; game.kittyAccepted = false;
   game.selectedDiscards = []; game.trump = null; game.trick = []; game.lastTrick = null; game.revealUntil = 0;
   game.leader = 0; game.turn = 0; game.scores = [0, 0, 0]; game.botBidSetCounts = [0, 0, 0]; game.botBidBlockedThroughHand = [0, 0, 0]; game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = [];
-  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.bitterVotes = [false, false, false]; game.prompt = 'Choose a player to begin.';
+  game.started = false; game.winner = null; game.chat = []; game.claimReveal = null; game.bitterVotes = [false, false, false]; game.humanSeatsThisHand = [false, false, false]; game.prompt = 'Choose a player to begin.';
 }
 
 function ensureBots() {
@@ -142,6 +143,7 @@ function resetHand() {
   game.highBid = 0; game.highBidder = null; game.lastBidderName = ''; game.bidHistory = []; game.passed = [false, false, false];
   game.trump = null; game.kittyAccepted = false; game.selectedDiscards = []; game.bitterVotes = [false, false, false]; game.trick = []; game.revealUntil = 0;
   game.handPoints = [0, 0, 0]; game.tricksWon = [0, 0, 0]; game.playedCards = []; game.playHistory = []; game.lastHandResult = null; game.claimReveal = null; game.winner = null;
+  game.humanSeatsThisHand = game.bot.map(isBot => !isBot);
   createDeal();
   game.misdealSeats = game.hands.map((hand, seat) => hand.reduce((total, card) => total + cardPoints(card), 0) === 0 ? seat : -1).filter(seat => seat >= 0);
   game.prompt = `${playerName(game.currentBidder)} bids first.`;
@@ -851,8 +853,15 @@ function claimRest(seat) {
   scoreHand();
   return true;
 }
-function goDown(seat) {
+function canGoDown(seat) {
   if (!['pickup', 'discard', 'playing', 'trickReveal'].includes(game.phase) || game.highBidder !== seat) return false;
+  const facedLiveOpponent = game.humanSeatsThisHand.some((isHuman, player) => isHuman && player !== seat);
+  if (!facedLiveOpponent) return true;
+  const bidderCardsPlayed = game.playHistory.filter(play => play.seat === seat).length;
+  return bidderCardsPlayed < 6;
+}
+function goDown(seat) {
+  if (!canGoDown(seat)) return false;
   clearTimeout(botTimer); clearTimeout(revealTimer);
   const bidder = game.highBidder;
   const defenders = [0, 1, 2].filter(player => player !== bidder);
@@ -949,6 +958,7 @@ function publicState(seat) {
     chat: game.chat,
     winner: game.winner,
     canClaimRest: canClaimRest(seat),
+    canGoDown: canGoDown(seat),
     claimReveal: game.claimReveal,
     bitterVotes: game.bitterVotes,
     canRedeal: game.phase === 'bidding' && !game.highBid && game.misdealSeats.includes(seat),
@@ -988,7 +998,7 @@ async function api(req, res) {
     let seat = PLAYER_NAMES.indexOf(name);
     const current = sessions.get(data.token || '');
     if (current && current.name === name) seat = current.seat;
-    game.live[seat] = true; game.bot[seat] = false; game.lastSeen[seat] = now();
+    game.live[seat] = true; game.bot[seat] = false; game.lastSeen[seat] = now(); game.humanSeatsThisHand[seat] = true;
     const token = current?.token || makeId('s_');
     sessions.set(token, { token, name, seat });
     if (game.started && game.bot[seat]) game.bot[seat] = false;
