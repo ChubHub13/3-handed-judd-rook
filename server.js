@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.32';
+const VERSION = '1.1.33';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -412,6 +412,18 @@ function wouldStrand14(seat, card) {
   return remain.length === 1 && remain[0].value === 14;
 }
 function isPointThrow(card) { return !!card && (card.rook || card.value === 10 || card.value === 5); }
+function chooseSecondSeatBidderPointFeed(seat, legal) {
+  if (game.trick.length !== 1 || game.trick[0].seat !== game.highBidder || game.trick[0].card.rook) return null;
+  const leadCard = game.trick[0].card;
+  const leadSuit = effectiveSuit(leadCard);
+  const remainingInColor = game.hands.flat().filter(card => effectiveSuit(card) === leadSuit);
+  const higherCards = remainingInColor.filter(card => cardRank(card) > cardRank(leadCard));
+  if (!higherCards.length) return null;
+  const highestRank = Math.max(...remainingInColor.map(cardRank));
+  if ((game.hands[seat] || []).some(card => effectiveSuit(card) === leadSuit && cardRank(card) === highestRank)) return null;
+  const points = legal.filter(isPointThrow);
+  return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0] || null;
+}
 function isEstablishedWinner(seat, card) {
   const leadSuit = effectiveSuit(card);
   return [0, 1, 2].filter(other => other !== seat && teamOf(other) !== teamOf(seat)).every(other => {
@@ -462,8 +474,10 @@ function chooseBotCard(seat) {
 
   if (!game.trick.length) {
     let leads = legal.filter(c => !isGuarded14(c) && (!c.rook || (game.trump && game.trump !== 'none' && cardRank(c) >= 16)));
+    const nonPointers = leads.filter(card => cardPoints(card) === 0);
+    if (nonPointers.length) leads = leads.filter(card => !(!card.rook && card.value === 10));
     if (bidder && game.trump && game.trump !== 'none' && opponentsStillHoldTrump(seat)) {
-      const trumps = legal.filter(c => effectiveSuit(c) === game.trump && (!c.rook || cardRank(c) >= 16));
+      const trumps = leads.filter(c => effectiveSuit(c) === game.trump && (!c.rook || cardRank(c) >= 16));
       if (trumps.length) return trumps.sort((a, b) => cardRank(b) - cardRank(a))[0];
     }
     if (!bidder) {
@@ -489,6 +503,9 @@ function chooseBotCard(seat) {
 
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
+
+  const secondSeatPoints = chooseSecondSeatBidderPointFeed(seat, legal);
+  if (secondSeatPoints) return secondSeatPoints;
 
   // When void, use trump to regain the lead before cashing established winners.
   if (teamOf(currentWinner) !== teamOf(seat) && botHasSideWinner(seat)) {
@@ -669,9 +686,11 @@ function botBidIsSuspended(seat) {
   return game.handNumber <= (game.botBidBlockedThroughHand[seat] || 0);
 }
 
-function recordBotBidResult(seat, madeBid) {
+function recordBotBidResult(seat, madeBid, bidderPoints = 0) {
   if (seat === null || !game.bot[seat] || madeBid) return;
-  game.botBidSetCounts[seat] = (game.botBidSetCounts[seat] || 0) + 1;
+  const deficit = Math.max(0, game.highBid - (Number(bidderPoints) || 0));
+  const strikes = deficit > 40 ? 2 : 1;
+  game.botBidSetCounts[seat] = (game.botBidSetCounts[seat] || 0) + strikes;
   if (game.botBidSetCounts[seat] < 2) return;
   game.botBidSetCounts[seat] = 0;
   game.botBidBlockedThroughHand[seat] = game.handNumber + 3;
@@ -843,7 +862,7 @@ function goDown(seat) {
   game.selectedDiscards = [];
   game.handPoints = [0, 0, 0];
   game.scores[bidder] = Math.max(0, game.scores[bidder] - game.highBid);
-  recordBotBidResult(bidder, false);
+  recordBotBidResult(bidder, false, 0);
   game.lastHandResult = {
     bid: game.highBid,
     bidder,
@@ -871,7 +890,7 @@ function scoreHand() {
   const bidderPoints = points[bidder] || 0;
   const defenderTotal = defenders.reduce((n, seat) => n + (points[seat] || 0), 0);
   const madeBid = bidderPoints >= game.highBid;
-  recordBotBidResult(bidder, madeBid);
+  recordBotBidResult(bidder, madeBid, bidderPoints);
   const defenderShares = [
     { seat: defenders[0], name: playerName(defenders[0]), points: defenderTotal },
     { seat: defenders[1], name: playerName(defenders[1]), points: defenderTotal },
