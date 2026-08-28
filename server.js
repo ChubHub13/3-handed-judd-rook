@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.33';
+const VERSION = '1.1.34';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -723,7 +723,7 @@ function chooseTrump(seat, trump) {
   if (!(SUITS.includes(trump) || trump === 'none')) return false;
   game.trump = trump;
   game.phase = 'discard';
-  sortHand(game.hands[seat]);
+  game.hands.forEach(sortHand);
   game.prompt = `${playerName(seat)} chose ${trump === 'none' ? 'No Trump' : `${trump} trump`}. Return 9 cards to the kitty.`;
   return true;
 }
@@ -737,7 +737,7 @@ function changeTrump(seat) {
   game.trump = null;
   game.selectedDiscards = [];
   game.phase = 'pickup';
-  sortHand(game.hands[seat]);
+  game.hands.forEach(sortHand);
   game.prompt = `${playerName(seat)} may choose a different trump before returning the kitty.`;
   return true;
 }
