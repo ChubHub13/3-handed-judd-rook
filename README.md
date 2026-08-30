@@ -1,4 +1,4 @@
-# 3-Handed Judd Rook v1.1.35
+# 3-Handed Judd Rook v1.1.36
 
 Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; no accounts or room codes are used. Any player who has not joined is treated as a bot when the game starts, and a disconnected live seat can become a bot.
 

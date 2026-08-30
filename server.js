@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.35';
+const VERSION = '1.1.36';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -16,6 +16,7 @@ const KITTY_SIZE = 9;
 const HAND_SIZE = 12;
 const PLAYER_TIMEOUT_MS = 8000;
 const TRICK_REVEAL_MS = 3000;
+const TRUMP_REVEAL_MS = 5000;
 const BOT_DELAY = { bid: 650, play: 550, trick: 850 };
 
 const sessions = new Map();
@@ -392,6 +393,15 @@ function cardWinLooksSecure(seat, card, leadSuit) {
   }
   return true;
 }
+function chooseFourteenCashout(seat, legal) {
+  const lead = game.trick[0];
+  if (!lead || lead.seat !== game.highBidder || seat === game.highBidder) return null;
+  const leadSuit = effectiveSuit(lead.card);
+  if (!leadSuit || cardRank(lead.card) >= 14 || cardAlreadyPlayed(leadSuit, 1)) return null;
+  const suitCards = (game.hands[seat] || []).filter(card => effectiveSuit(card) === leadSuit);
+  if (suitCards.length < 2) return null;
+  return legal.find(card => !card.rook && card.value === 14 && effectiveSuit(card) === leadSuit) || null;
+}
 function bidderLedBelowHigh() {
   const lead = game.trick[0];
   return !!lead && lead.seat === game.highBidder && cardRank(lead.card) < 15;
@@ -506,6 +516,9 @@ function chooseBotCard(seat) {
   const winningPlay = game.trick.find(x => x.seat === currentWinner);
   const winningCards = legal.filter(c => beats(c, winningPlay.card, leadSuit));
 
+  const fourteenCashout = chooseFourteenCashout(seat, legal);
+  if (fourteenCashout) return fourteenCashout;
+
   const secondSeatPoints = chooseSecondSeatBidderPointFeed(seat, legal);
   if (secondSeatPoints) return secondSeatPoints;
 
@@ -521,7 +534,8 @@ function chooseBotCard(seat) {
     const under = legal.filter(c => !beats(c, winningPlay.card, leadSuit));
     const pool = under.length ? under : legal;
     if (cardWinLooksSecure(seat, winningPlay.card, leadSuit)) {
-      const points = pool.filter(isPointThrow);
+      const points = legal.filter(card => isPointThrow(card)
+        && (!beats(card, winningPlay.card, leadSuit) || cardWinLooksSecure(seat, card, leadSuit)));
       if (points.length) return points.sort((a, b) => cardPoints(b) - cardPoints(a) || cardRank(a) - cardRank(b))[0];
     }
     const safe = pool.filter(c => !isGuarded14(c) && !wouldStrand14(seat, c));
@@ -777,9 +791,13 @@ function botFinishPickup() {
   acceptKitty(seat);
   const trump = chooseBestTrump(game.hands[seat]);
   chooseTrump(seat, trump);
-  const discards = chooseBotDiscards(game.hands[seat], trump);
-  selectDiscards(seat, discards.map(c => c.id));
-  finishDiscard(seat);
+  clearTimeout(botTimer);
+  botTimer = setTimeout(() => {
+    if (!game.bot[seat] || game.phase !== 'discard' || game.highBidder !== seat || game.trump !== trump) return;
+    const discards = chooseBotDiscards(game.hands[seat], trump);
+    selectDiscards(seat, discards.map(c => c.id));
+    finishDiscard(seat);
+  }, TRUMP_REVEAL_MS);
 }
 function resolveTrick() {
   const winner = trickWinner(game.trick);
@@ -935,6 +953,7 @@ function publicState(seat) {
     highBidder: game.highBidder,
     lastBidderName: game.lastBidderName,
     bidHistory: game.bidHistory,
+    passed: game.passed,
     prompt: game.prompt,
     trump: game.trump,
     kitty: visibleKitty,

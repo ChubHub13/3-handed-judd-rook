@@ -1892,6 +1892,49 @@
     .bid-row.passed strong { color: var(--muted); font-size: 12px; }
     .bid-row.winner { box-shadow: inset 3px 0 var(--gold); }
 
+    .bid-trump-panel { padding: 0; overflow: hidden; }
+    .bid-trump-line {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+    }
+    .bid-inline, .trump-inline { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+    .bid-inline span, .trump-inline span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bid-inline strong { color: var(--gold); font-size: 18px; }
+    .trump-inline { color: var(--muted); font-size: 10px; }
+    .trump-inline .trump-dot { width: 15px; height: 15px; flex: 0 0 auto; }
+    .bid-status-list { border-top: 1px solid rgba(255,255,255,.08); }
+    .bid-status-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 10px; font-size: 10px; }
+    .bid-status-row strong { color: var(--gold); }
+    .bid-status-row.passed { color: var(--muted); }
+    .bid-status-row.passed strong { color: var(--muted); }
+    .bid-status-row.active { background: rgba(229,183,79,.11); }
+
+    .trump-announcement {
+      position: absolute;
+      z-index: 85;
+      left: 50%;
+      top: 42%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 26px;
+      border: 2px solid var(--gold);
+      border-radius: 16px;
+      color: var(--ink);
+      background: rgba(18,12,7,.96);
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      pointer-events: none;
+      animation: trumpNoticeIn .18s ease-out;
+    }
+    .trump-announcement strong { font-size: 22px; white-space: nowrap; }
+    .trump-announcement .trump-dot { width: 26px; height: 26px; }
+    @keyframes trumpNoticeIn { from { opacity: 0; transform: translate(-50%,-46%) scale(.94); } }
+
     .sidebar-scoreboard {
       display: grid;
       grid-template-columns: 1fr;
@@ -3601,13 +3644,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.35">
+<body data-theme="classic" data-version="1.1.36">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.35</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.36</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3620,8 +3663,7 @@
 
   <div class="game-layout">
     <aside class="game-sidebar" aria-label="Game information">
-      <div class="table-info sidebar-panel sidebar-trump"><div class="sidebar-heading">Trump</div><div class="trump-display"><span class="trump-dot" id="trumpDot"></span><span id="tableInfoText">No trump selected</span></div></div>
-      <section class="bid-board sidebar-panel"><div class="sidebar-heading">Bid</div><div class="bid-winner-display"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></div></section>
+      <section class="sidebar-panel bid-trump-panel"><div class="bid-trump-line"><span class="bid-inline"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></span><span class="trump-inline"><span class="trump-dot" id="trumpDot"></span><span id="tableInfoText">No trump</span></span></div><div class="bid-status-list" id="bidStatusList" hidden></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
       <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
       <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button><button class="btn danger sidebar-go-down" id="goDownButton" hidden>Go Down</button></div>
@@ -3645,12 +3687,12 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.35";
+const APP_VERSION="1.1.36";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
-const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null};
+const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
 const els={
-  modalBackdrop:document.getElementById("modalBackdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast"),hand:document.getElementById("humanHand"),controls:document.getElementById("gameControls"),promptTitle:document.getElementById("promptTitle"),promptText:document.getElementById("promptText"),scoreEntries:document.getElementById("scoreEntries"),bidWinnerName:document.getElementById("bidWinnerName"),bidWinnerValue:document.getElementById("bidWinnerValue"),handLabel:document.getElementById("handLabel"),targetLabel:document.getElementById("targetLabel"),trumpDot:document.getElementById("trumpDot"),tableInfoText:document.getElementById("tableInfoText"),tableShell:document.getElementById("tableShell"),nestLabel:document.getElementById("nestLabel"),scoreHistoryList:document.getElementById("scoreHistoryList"),kittyStage:document.getElementById("kittyStage"),chatMessages:document.getElementById("chatMessages"),chatForm:document.getElementById("chatForm"),chatInput:document.getElementById("chatInput")
+  modalBackdrop:document.getElementById("modalBackdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast"),hand:document.getElementById("humanHand"),controls:document.getElementById("gameControls"),promptTitle:document.getElementById("promptTitle"),promptText:document.getElementById("promptText"),scoreEntries:document.getElementById("scoreEntries"),bidWinnerName:document.getElementById("bidWinnerName"),bidWinnerValue:document.getElementById("bidWinnerValue"),bidStatusList:document.getElementById("bidStatusList"),handLabel:document.getElementById("handLabel"),targetLabel:document.getElementById("targetLabel"),trumpDot:document.getElementById("trumpDot"),tableInfoText:document.getElementById("tableInfoText"),tableShell:document.getElementById("tableShell"),nestLabel:document.getElementById("nestLabel"),scoreHistoryList:document.getElementById("scoreHistoryList"),kittyStage:document.getElementById("kittyStage"),chatMessages:document.getElementById("chatMessages"),chatForm:document.getElementById("chatForm"),chatInput:document.getElementById("chatInput")
 };
 function escapeHtml(v){return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 function showToast(t){els.toast.textContent=t;els.toast.classList.add("show");clearTimeout(showToast.t);showToast.t=setTimeout(()=>els.toast.classList.remove("show"),1900);}
@@ -3666,8 +3708,11 @@ function render(){const s=state.data;if(!s)return;
   for(let i=0;i<3;i++){const p=playerState(i);document.getElementById(`name${i}`).textContent=p?.name||["Daryl","Cristi","Cindy"][i];document.getElementById(`avatar${i}`).textContent=(p?.name||["Daryl","Cristi","Cindy"][i]).charAt(0);document.getElementById(`detail${i}`).textContent=p?.bot?"Bot":p?.connected?"Live":"Waiting";document.getElementById(`player${i}`).classList.toggle("active",(s.phase==="playing"&&s.turn===i)||(s.phase==="bidding"&&s.currentBidder===i));document.getElementById(`player${i}`).classList.toggle("leader",s.phase!=="waiting"&&s.leader===i);document.getElementById(`player${i}`).classList.toggle("bid-winner",s.highBidder===i);const mini=document.getElementById(`mini${i}`);if(mini)mini.innerHTML="";for(let k=0;k<(s.handCounts[i]||0);k++){const x=document.createElement("span");x.className="mini-back";if(mini)mini.appendChild(x);}const pointsEl=document.getElementById(`handPoints${i}`);if(pointsEl)pointsEl.textContent=s.highBidder===i?`Bid ${s.highBid}`:`${s.scores[i]||0}`;}
   for(let i=0;i<3;i++){const slot=document.getElementById(`slot${i}`);if(!slot)continue;const p=s.trick.find(x=>x.seat===i);slot.innerHTML=p?cardHtml(p.card,"played-card"):"";}
   els.bidWinnerName.textContent=s.highBidder===null?"No bid":playerState(s.highBidder)?.name||"Bidder";els.bidWinnerValue.textContent=s.highBid||"â€”";els.handLabel.textContent=s.handNumber?`Hand ${s.handNumber}`:"Waiting";els.targetLabel.textContent="First to 1000";els.nestLabel.textContent=`${s.kittyCount||0}-card kitty`;els.tableInfoText.textContent=s.trump?(s.trump==="none"?"No Trump":`${s.trump} trump`):"No trump selected";els.trumpDot.style.background=s.trump&&s.trump!=="none"?`var(--${s.trump})`:"#777";if((s.phase==="scoring"||s.phase==="gameover")&&s.lastHandResult&&s.handNumber!==state.lastScorePopupHand){state.lastScorePopupHand=s.handNumber;showHandScorePopup(s);}
-  if(els.scoreEntries)els.scoreEntries.innerHTML=s.seats.map((p,i)=>`<div class="team-score"><div class="sidebar-score-name">${escapeHtml(p.name)}</div><div class="score-value-wrap"><div class="score-value">${s.scores[i]||0}</div></div></div>`).join("");els.promptTitle.textContent=s.prompt||"3-Handed Judd Rook";els.promptText.textContent=promptText(s);renderKittyStage(s);renderLastTrick(s);renderChat(s);renderControls();
+  if(els.scoreEntries)els.scoreEntries.innerHTML=s.seats.map((p,i)=>`<div class="team-score"><div class="sidebar-score-name">${escapeHtml(p.name)}</div><div class="score-value-wrap"><div class="score-value">${s.scores[i]||0}</div></div></div>`).join("");els.promptTitle.textContent=s.prompt||"3-Handed Judd Rook";els.promptText.textContent=promptText(s);renderBidStatuses(s);syncTrumpAnnouncement(s);renderKittyStage(s);renderLastTrick(s);renderChat(s);renderControls();
 }
+function renderBidStatuses(s){if(!els.bidStatusList)return;const visible=s.phase==="bidding";els.bidStatusList.hidden=!visible;if(!visible){els.bidStatusList.innerHTML="";return;}const latest=[null,null,null];for(const entry of s.bidHistory||[])latest[entry.seat]=entry;els.bidStatusList.innerHTML=(s.seats||[]).map((player,seat)=>{const entry=latest[seat],passed=!!s.passed?.[seat]||entry?.passed;let status=passed?"Passed":typeof entry?.bid==="number"?`Bid ${entry.bid}`:s.currentBidder===seat?"Choosing…":"Still bidding";return `<div class="bid-status-row ${passed?"passed":""} ${s.currentBidder===seat?"active":""}"><span>${escapeHtml(player.name)}</span><strong>${status}</strong></div>`;}).join("");}
+function clearTrumpOverlays(){clearTimeout(state.trumpNoticeTimer);state.trumpNoticeTimer=null;document.getElementById("trumpAnnouncement")?.remove();document.getElementById("trumpPickerBar")?.remove();}
+function syncTrumpAnnouncement(s){if(!s.trump){state.lastObservedTrump=null;state.lastObservedTrumpHand=s.handNumber;document.getElementById("trumpAnnouncement")?.remove();return;}if(!["discard","playing"].includes(s.phase)){if(["bidding","scoring","gameover","waiting"].includes(s.phase))clearTrumpOverlays();return;}if(state.lastObservedTrump===s.trump&&state.lastObservedTrumpHand===s.handNumber)return;state.lastObservedTrump=s.trump;state.lastObservedTrumpHand=s.handNumber;clearTimeout(state.trumpNoticeTimer);document.getElementById("trumpAnnouncement")?.remove();const notice=document.createElement("div");notice.id="trumpAnnouncement";notice.className=`trump-announcement ${s.trump==="none"?"no-trump":s.trump}`;notice.innerHTML=`<span class="trump-dot"></span><strong>${s.trump==="none"?"No Trump":s.trump[0].toUpperCase()+s.trump.slice(1)+" is Trump"}</strong>`;if(s.trump!=="none")notice.querySelector(".trump-dot").style.background=`var(--${s.trump})`;els.tableShell.appendChild(notice);state.trumpNoticeTimer=setTimeout(()=>notice.remove(),5000);}
 function promptText(s){if(s.phase==="bidding")return s.currentBidder===state.seat?"Your turn to bid.":`Waiting for ${playerState(s.currentBidder)?.name||"the next player"}.`;if(s.phase==="pickup")return `${playerState(s.highBidder)?.name||"Bidder"} won the bid.`;if(s.phase==="discard")return s.highBidder===state.seat?"Choose exactly 9 cards to return to the kitty.":"The bidder is choosing the kitty cards.";if(s.phase==="playing")return s.turn===state.seat?"Play a card.":`Waiting for ${playerState(s.turn)?.name||"the other player"}.`;if(s.phase==="trickReveal")return "Last trick â€” cards stay visible for 3 seconds.";if(s.phase==="scoring")return "Hand complete.";if(s.phase==="gameover")return "Game over.";return "Waiting for the game to start.";}
 function renderKittyStage(s){if(!els.kittyStage)return;const visible=s.phase==="pickup"&&s.highBidder===state.seat&&!s.kittyAccepted&&Array.isArray(s.kitty)&&s.kitty.length>0;els.kittyStage.hidden=!visible;if(!visible){els.kittyStage.innerHTML="";els.kittyStage.classList.remove("acceptable");els.kittyStage.removeAttribute("role");els.kittyStage.removeAttribute("tabindex");els.kittyStage.onclick=null;els.kittyStage.onkeydown=null;return;}els.kittyStage.classList.add("acceptable");els.kittyStage.setAttribute("role","button");els.kittyStage.setAttribute("tabindex","0");els.kittyStage.setAttribute("aria-label","Accept the 9-card kitty");els.kittyStage.innerHTML=`<div class="kitty-stage-title">Kitty â€” ${s.kitty.length} cards</div><div class="kitty-stage-cards">${s.kitty.map(c=>cardHtml(c,"kitty-stage-card")).join("")}</div><div class="kitty-stage-hint">Tap the kitty to add these cards to your hand</div>`;const accept=()=>{if(state.data?.phase==="pickup"&&state.data?.highBidder===state.seat&&!state.data?.kittyAccepted)send({action:"acceptKitty"});};els.kittyStage.onclick=accept;els.kittyStage.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();accept();}};}function renderLastTrick(s){if(!els.scoreHistoryList)return;if(!s.lastTrick){els.scoreHistoryList.innerHTML='<span class="score-history-empty">No trick yet.</span>';return;}els.scoreHistoryList.innerHTML=`<div class="last-trick-banner"><div class="last-trick-cards">${s.lastTrick.plays.map(play=>`<div class="last-trick-play ${play.seat===s.lastTrick.winner?"winner":""}">${cardHtml(play.card,"last-trick-card")}<span class="chat-muted">${escapeHtml(playerState(play.seat)?.name||"")}</span></div>`).join("")}</div><div class="last-trick-result"><strong>${escapeHtml(playerState(s.lastTrick.winner)?.name||"Player")} won</strong><span>${s.lastTrick.points} points</span></div></div>`;}
 function renderChat(s){if(!els.chatMessages)return;els.chatMessages.innerHTML="";for(const m of s.chat||[]){const row=document.createElement("div");row.className="chat-message";row.innerHTML=`<b>${escapeHtml(m.name)}</b> <span class="chat-muted">${escapeHtml(m.text)}</span>`;els.chatMessages.appendChild(row);}els.chatMessages.scrollTop=els.chatMessages.scrollHeight;}
@@ -3766,7 +3811,7 @@ toggleDiscard=function(cardId){
   flying.animate([{transform:"translate3d(0,0,0) rotate(0deg) scale(1)",opacity:1},{transform:end,opacity:.95}],{duration:360,easing:"cubic-bezier(.2,.72,.2,1)",fill:"forwards"}).finished.catch(()=>undefined).finally(()=>flying.remove());
 };
 const sendWithSingleClick=send;
-send=async function(action){if(state.actionBusy)return;state.actionBusy=true;try{await sendWithSingleClick(action);}finally{state.actionBusy=false;}};
+send=async function(action){if(state.actionBusy)return;if(["goDown","newGame","nextHand","start"].includes(action?.action))clearTrumpOverlays();state.actionBusy=true;try{await sendWithSingleClick(action);}finally{state.actionBusy=false;}};
 const pollWithoutActionRace=poll;
 poll=async function(){if(state.actionBusy)return;await pollWithoutActionRace();};
 const renderControlsWithoutDuplicates=renderControls;
