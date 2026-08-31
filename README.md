@@ -1,4 +1,4 @@
-# 3-Handed Judd Rook v1.1.37
+# 3-Handed Judd Rook v1.1.38
 
 Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; no accounts or room codes are used. Any player who has not joined is treated as a bot when the game starts, and a disconnected live seat can become a bot.
 
@@ -27,6 +27,8 @@ Three-player Judd Rook for Daryl, Cristi, and Cindy. Players select their name; 
 The bidder's floating hand score turns red as soon as the bidder is mathematically set, matching Solitaire.
 
 Until the bidder plays the first card, the bidder may reopen the kitty or change trump. Bots automatically claim **The Rest Are Mine** when the remaining tricks are guaranteed.
+
+Claiming **The Rest Are Mine** always opens the completed-hand score details, including after a new game returns to Hand 1.
 
 Before the first bid, Bitter Bunch proceeds in bidding order: each next player may agree, but anyone who does not agree must open the bidding. Bot bidders favor two working colors, protect their final trump for the last trick, and return non-winning side-color 10s and 5s to the kitty when practical. After taking a bidder-led side-color trick, a defending bot leads a different non-trump color when one is available. After a bot is set twice, it must pass for the next three hands.
 

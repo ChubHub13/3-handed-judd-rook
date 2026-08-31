@@ -3642,13 +3642,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.37">
+<body data-theme="classic" data-version="1.1.38">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.37</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.38</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3685,7 +3685,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.37";
+const APP_VERSION="1.1.38";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
@@ -3701,6 +3701,7 @@ function cardInner(c){if(c.rook)return '<div class="corner top"><span>R</span></
 function cardHtml(c,extra=""){return `<div class="card ${c.rook?"rook":c.suit} ${extra}">${cardInner(c)}</div>`;}
 function playerState(i){return state.data?.seats?.[i];}
 function render(){const s=state.data;if(!s)return;
+  if(!s.lastHandResult&&s.handNumber<=state.lastScorePopupHand)state.lastScorePopupHand=0;
   els.tableShell.dataset.playerCount="3";els.tableShell.classList.toggle("reveal-trick",s.phase==="trickReveal");
   if(!els.hand)return;els.hand.innerHTML="";const visibleHand=s.hands[state.seat]||[];const handZone=els.hand.parentElement;if(handZone)handZone.classList.toggle("expanded-hand",visibleHand.length>12);visibleHand.forEach((c,i)=>{const b=document.createElement("button");b.type="button";b.className=`card ${c.rook?"rook":c.suit}`;b.dataset.cardId=c.id;b.style.zIndex=String(i+1);b.innerHTML=cardInner(c);const active=s.phase==="playing"&&s.turn===state.seat;const discard=s.phase==="discard"&&s.highBidder===state.seat;const selected=(s.selectedDiscards||[]).includes(c.id);if(discard){b.classList.add("playable");b.classList.toggle("selected",selected);bindDiscardClicks(b,c);}else if(active){b.classList.add("playable");b.onclick=()=>send({action:"play",cardId:c.id});}else b.disabled=true;els.hand.appendChild(b);});
   const showLeader=s.highBidder!==null&&["pickup","discard","playing","trickReveal"].includes(s.phase);for(let i=0;i<3;i++){const p=playerState(i);document.getElementById(`name${i}`).textContent=p?.name||["Daryl","Cristi","Cindy"][i];document.getElementById(`avatar${i}`).textContent=(p?.name||["Daryl","Cristi","Cindy"][i]).charAt(0);document.getElementById(`detail${i}`).textContent=p?.bot?"Bot":p?.connected?"Live":"Waiting";document.getElementById(`player${i}`).classList.toggle("active",(s.phase==="playing"&&s.turn===i)||(s.phase==="bidding"&&s.currentBidder===i));document.getElementById(`player${i}`).classList.toggle("leader",showLeader&&s.leader===i);document.getElementById(`player${i}`).classList.toggle("bid-winner",s.highBidder===i);const mini=document.getElementById(`mini${i}`);if(mini)mini.innerHTML="";for(let k=0;k<(s.handCounts[i]||0);k++){const x=document.createElement("span");x.className="mini-back";if(mini)mini.appendChild(x);}const pointsEl=document.getElementById(`handPoints${i}`);if(pointsEl)pointsEl.textContent=s.highBidder===i?`Bid ${s.highBid}`:`${s.scores[i]||0}`;}
@@ -3809,7 +3810,7 @@ toggleDiscard=function(cardId){
   flying.animate([{transform:"translate3d(0,0,0) rotate(0deg) scale(1)",opacity:1},{transform:end,opacity:.95}],{duration:360,easing:"cubic-bezier(.2,.72,.2,1)",fill:"forwards"}).finished.catch(()=>undefined).finally(()=>flying.remove());
 };
 const sendWithSingleClick=send;
-send=async function(action){if(state.actionBusy)return;if(["goDown","newGame","nextHand","start"].includes(action?.action))clearTrumpOverlays();state.actionBusy=true;try{await sendWithSingleClick(action);}finally{state.actionBusy=false;}};
+send=async function(action){if(state.actionBusy)return;if(["newGame","start"].includes(action?.action))state.lastScorePopupHand=0;if(["goDown","newGame","nextHand","start"].includes(action?.action))clearTrumpOverlays();state.actionBusy=true;try{await sendWithSingleClick(action);}finally{state.actionBusy=false;}};
 const pollWithoutActionRace=poll;
 poll=async function(){if(state.actionBusy)return;await pollWithoutActionRace();};
 const renderControlsWithoutDuplicates=renderControls;
@@ -3822,7 +3823,7 @@ renderControls=function(){
   els.controls.querySelectorAll(".bitter-bunch-option").forEach(option=>option.remove());
   if(s.phase==="bidding"&&!s.highBid){[...els.controls.querySelectorAll("button")].find(button=>button.textContent.trim()==="Pass")?.remove();if(s.currentBidder===state.seat){const votes=s.bitterVotes||[],wrap=document.createElement("div"),bitter=document.createElement("button");wrap.className="bitter-bunch-option";bitter.type="button";bitter.className="btn bitter-bunch";bitter.textContent=`Bitter Bunch — agree ${votes.filter(Boolean).length}/3`;bitter.disabled=!!votes[state.seat];bitter.onclick=()=>send({action:"bitterBunch"});wrap.appendChild(bitter);els.controls.appendChild(wrap);}}
   const goDown=document.getElementById("goDownButton"),canGoDown=!!s.canGoDown;if(goDown){goDown.hidden=!canGoDown;goDown.disabled=!canGoDown;}
-  if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=()=>send({action:"claimRest"});els.controls.appendChild(claim);}
+  if(s.phase==="playing"&&s.canClaimRest){const claim=document.createElement("button");claim.type="button";claim.className="btn success";claim.textContent="The Rest Are Mine";claim.onclick=async()=>{state.lastScorePopupHand=0;await send({action:"claimRest"});};els.controls.appendChild(claim);}
 };
 openTrumpPicker=function(){
   const s=state.data;if(!s||s.phase!=="pickup"||s.highBidder!==state.seat||!s.kittyAccepted)return;
