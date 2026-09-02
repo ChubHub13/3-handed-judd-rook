@@ -19,4 +19,8 @@
   };
   if (target.classList.contains("top-actions")) target.prepend(button);
   else target.append(button);
+
+  if (new URLSearchParams(location.search).get("gameNightNew") === "1") {
+    window.setTimeout(() => document.getElementById("newGameButton")?.click(), 900);
+  }
 }());
