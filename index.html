@@ -3849,5 +3849,6 @@ els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=e
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
+  <script src="game-night-return.js"></script>
 </body>
 </html>
