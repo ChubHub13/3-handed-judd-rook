@@ -3642,13 +3642,13 @@
 }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.38">
+<body data-theme="classic" data-version="1.1.39">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.38</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.39</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3850,5 +3850,37 @@ document.getElementById("changePlayerButton").onclick=choosePlayer;document.getE
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
   <script src="game-night-return.js"></script>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const gameNight = params.get("gameNight");
+  if (!gameNight) return;
+
+  const style = document.createElement("style");
+  style.textContent = `
+    #gameNightReturn {
+      position: fixed; right: 14px; bottom: 14px; z-index: 9999;
+      min-height: 38px; padding: 8px 12px; border: 1px solid rgba(255,255,255,.32);
+      border-radius: 999px; color: #fff4d0; background: rgba(13,8,18,.88);
+      box-shadow: 0 4px 18px rgba(0,0,0,.35); font: 800 12px/1 Inter,Segoe UI,Arial,sans-serif;
+      cursor: pointer;
+    }
+    #gameNightReturn:hover { filter: brightness(1.18); }
+    @media (max-width: 760px) { #gameNightReturn { right: 8px; bottom: 8px; min-height: 32px; padding: 6px 9px; font-size: 10px; } }
+  `;
+  document.head.append(style);
+
+  const button = document.createElement("button");
+  button.id = "gameNightReturn";
+  button.type = "button";
+  button.textContent = "← Game Night";
+  button.onclick = () => location.assign(gameNight);
+  document.body.append(button);
+
+  if (params.get("gameNightNew") === "1") {
+    window.setTimeout(() => document.getElementById("newGameButton")?.click(), 800);
+  }
+})();
+</script>
 </body>
 </html>
