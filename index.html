@@ -3644,14 +3644,32 @@
 @media (min-width:761px) { html,body{height:100%;overflow:hidden}.app{height:100vh}.game-layout{min-height:0}.game-sidebar{min-height:0}.game-main{min-height:0}.table-shell{height:calc(100vh - 165px)!important;min-height:400px!important}.game-sidebar{grid-template-rows:auto 1fr auto!important}.sidebar-actions{margin-top:0!important} }
 @media (max-width:760px) and (orientation:landscape) { html,body{height:100%;overflow:hidden}.app{height:100vh}.topbar{min-height:46px!important;height:46px!important}.game-layout{grid-template-columns:155px minmax(0,1fr)!important;padding:4px!important}.game-sidebar{display:flex!important;min-height:0}.table-shell{height:calc(100vh - 105px)!important;min-height:300px!important}.sidebar-actions .btn{min-height:28px!important;font-size:9px!important} }
 </style>
+<style>
+/* Tablet bidding stays in the visible table, rather than below the cards. */
+.tablet-bid-bar { display:none; }
+@media (max-width:1100px) {
+  .tablet-bid-bar { position:absolute; z-index:75; left:50%; top:48%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; gap:7px; min-width:270px; padding:9px 11px; border:1px solid rgba(242,195,94,.68); border-radius:13px; background:rgba(9,30,22,.96); box-shadow:0 12px 30px rgba(0,0,0,.48); }
+  .tablet-bid-bar label { color:var(--gold); font-size:11px; font-weight:900; white-space:nowrap; }
+  .tablet-bid-bar .bid-value-input { width:78px; min-height:38px; }
+  .tablet-bid-bar .btn { min-width:66px; min-height:38px; padding:6px 9px; }
+}
+@media (max-width:760px) and (orientation:landscape) {
+  .tablet-bid-bar { top:45%; min-width:236px; padding:6px 8px; gap:5px; }
+  .tablet-bid-bar label { font-size:9px; }
+  .tablet-bid-bar .bid-value-input, .tablet-bid-bar .btn { min-height:30px; font-size:10px; }
+  .tablet-bid-bar .bid-value-input { width:62px; }
+  .tablet-bid-bar .btn { min-width:52px; padding:4px 6px; }
+}
+#gameNightReturn { z-index:10000 !important; pointer-events:auto !important; }
+</style>
 </head>
-<body data-theme="classic" data-version="1.1.40">
+<body data-theme="classic" data-version="1.1.41">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.40</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.41</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3666,7 +3684,7 @@
     <aside class="game-sidebar" aria-label="Game information">
       <section class="sidebar-panel bid-trump-panel"><div class="bid-trump-line"><span class="bid-inline"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></span><span class="trump-inline"><span class="trump-dot" id="trumpDot" hidden></span><span id="tableInfoText"></span></span></div><div class="bid-status-list" id="bidStatusList" hidden></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
-      <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button><button class="btn danger sidebar-go-down" id="goDownButton" hidden>Go Down</button></div>
+      <div class="sidebar-actions"><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button><button class="btn danger sidebar-go-down" id="goDownButton" hidden>Go Down</button></div>
     </aside>
 
     <div class="game-main">
@@ -3687,7 +3705,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.38";
+const APP_VERSION="1.1.41";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
@@ -3845,8 +3863,34 @@ const showScorePopupWithClaimReveal=showHandScorePopup;
 showHandScorePopup=function(s){showScorePopupWithClaimReveal(s);if(!Array.isArray(s.claimReveal)||!s.claimReveal.length)return;els.modal.className="modal hand-score-modal";const actions=els.modal.querySelector(".modal-actions"),layout=document.createElement("div"),summary=document.createElement("section"),reveal=document.createElement("section");layout.className="score-result-layout";summary.className="score-result-summary";reveal.className="claim-reveal";const heading=s.lastHandResult?.wentDown?"Remaining Cards — Hand Ended":"Remaining Cards — Claimed by "+escapeHtml(playerState(s.highBidder)?.name||"Bidder");reveal.innerHTML=`<h3>${heading}</h3>${s.claimReveal.map((hand,seat)=>`<div class="claim-reveal-row"><strong>${escapeHtml(playerState(seat)?.name||"")}</strong><div class="claim-reveal-cards">${hand.map(card=>cardHtml(card)).join("")}</div></div>`).join("")}`;[...els.modal.children].filter(node=>node!==actions).forEach(node=>summary.appendChild(node));layout.append(summary,reveal);els.modal.insertBefore(layout,actions);};
 const renderWithHandPoints=render;
 render=function(){renderWithHandPoints();const s=state.data;if(!s)return;const bidderSet=bidderIsCurrentlySet(s);for(let i=0;i<3;i++){const points=document.getElementById(`handPoints${i}`);if(points){points.textContent=`${s.handPoints?.[i]||0}`;points.classList.toggle("set",bidderSet&&i===s.highBidder);}}if(s.canRedeal&&state.lastMisdealHand!==s.handNumber){state.lastMisdealHand=s.handNumber;const hand=s.hands[state.seat]||[];openModal(`<h2>Misdeal</h2><p class="table-dialog-summary">Your hand has no point cards. You may request a redeal before bidding begins.</p><div class="misdeal-hand">${hand.map(card=>cardHtml(card)).join("")}</div><div class="modal-actions"><button class="btn primary" id="misdealRedeal">Re-Deal</button></div>`);document.getElementById("misdealRedeal").onclick=async()=>{await send({action:"redeal"});closeModal();};}};
-document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
-(function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
+document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop&&!els.modal.querySelector("[data-name]"))closeModal();});
+// Always let the person opening the table choose their seat.  A saved token
+// is retained only to let that same choice rejoin cleanly after a refresh.
+(function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;}choosePlayer();})();
+
+function renderTabletBidBar(){
+  const current=document.getElementById("tabletBidBar"),s=state.data;
+  const show=!!(s&&s.phase==="bidding"&&s.currentBidder===state.seat&&matchMedia("(max-width: 1100px)").matches);
+  if(!show){current?.remove();return;}
+  const min=s.highBid?(s.highBid<200?s.highBid+5:400):150;
+  if(current?.dataset.min===String(min))return;
+  current?.remove();
+  const bar=document.createElement("div");
+  bar.id="tabletBidBar";
+  bar.className="tablet-bid-bar";
+  const values=[];
+  for(let bid=min;bid<=200;bid+=5)values.push(bid);
+  if(min<=400&&!values.includes(400))values.push(400);
+  bar.innerHTML=`<label for="tabletBidValue">Your bid</label><select id="tabletBidValue" class="bid-value-input">${values.map(value=>`<option value="${value}">${value}</option>`).join("")}</select><button type="button" class="btn primary">Bid</button><button type="button" class="btn">Pass</button>`;
+  const select=bar.querySelector("select");
+  if(values.includes(Number(state.bidDraft)))select.value=String(state.bidDraft);
+  select.onchange=()=>{state.bidDraft=select.value;};
+  bar.querySelector(".primary").onclick=async()=>{state.bidDraft=null;await send({action:"bid",bid:Number(select.value)});};
+  bar.querySelectorAll(".btn")[1].onclick=()=>send({action:"pass"});
+  els.tableShell.append(bar);
+}
+const renderWithTabletBidBar=render;
+render=function(){renderWithTabletBidBar();renderTabletBidBar();};
 </script>
 <script>
 (() => {
