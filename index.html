@@ -3645,16 +3645,16 @@
 @media (max-width:760px) and (orientation:landscape) { html,body{height:100%;overflow:hidden}.app{height:100vh}.topbar{min-height:46px!important;height:46px!important}.game-layout{grid-template-columns:155px minmax(0,1fr)!important;padding:4px!important}.game-sidebar{display:flex!important;min-height:0}.table-shell{height:calc(100vh - 105px)!important;min-height:300px!important}.sidebar-actions .btn{min-height:28px!important;font-size:9px!important} }
 </style>
 <style>
-/* Tablet bidding stays in the visible table, rather than below the cards. */
+/* Tablet bidding stays above the table, rather than below the cards. */
 .tablet-bid-bar { display:none; }
-@media (max-width:1100px) {
-  .tablet-bid-bar { position:absolute; z-index:75; left:50%; top:48%; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; gap:7px; min-width:270px; padding:9px 11px; border:1px solid rgba(242,195,94,.68); border-radius:13px; background:rgba(9,30,22,.96); box-shadow:0 12px 30px rgba(0,0,0,.48); }
+@media (max-width:1100px), (pointer:coarse) {
+  .tablet-bid-bar { position:fixed; z-index:9000; left:50%; top:58px; transform:translateX(-50%); display:flex; align-items:center; justify-content:center; gap:7px; min-width:270px; padding:9px 11px; border:1px solid rgba(242,195,94,.68); border-radius:13px; background:rgba(9,30,22,.98); box-shadow:0 12px 30px rgba(0,0,0,.48); pointer-events:auto; }
   .tablet-bid-bar label { color:var(--gold); font-size:11px; font-weight:900; white-space:nowrap; }
   .tablet-bid-bar .bid-value-input { width:78px; min-height:38px; }
   .tablet-bid-bar .btn { min-width:66px; min-height:38px; padding:6px 9px; }
 }
 @media (max-width:760px) and (orientation:landscape) {
-  .tablet-bid-bar { top:45%; min-width:236px; padding:6px 8px; gap:5px; }
+  .tablet-bid-bar { top:51px; min-width:236px; padding:6px 8px; gap:5px; }
   .tablet-bid-bar label { font-size:9px; }
   .tablet-bid-bar .bid-value-input, .tablet-bid-bar .btn { min-height:30px; font-size:10px; }
   .tablet-bid-bar .bid-value-input { width:62px; }
@@ -3663,13 +3663,13 @@
 #gameNightReturn { z-index:10000 !important; pointer-events:auto !important; }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.41">
+<body data-theme="classic" data-version="1.1.42">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.41</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.42</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3705,7 +3705,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.41";
+const APP_VERSION="1.1.42";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
@@ -3870,13 +3870,15 @@ document.getElementById("settingsButton").onclick=openSettings;document.getEleme
 
 function renderTabletBidBar(){
   const current=document.getElementById("tabletBidBar"),s=state.data;
-  const show=!!(s&&s.phase==="bidding"&&s.currentBidder===state.seat&&matchMedia("(max-width: 1100px)").matches);
+  const tabletLayout=matchMedia("(max-width: 1100px), (pointer: coarse)").matches;
+  const show=!!(s&&s.phase==="bidding"&&s.currentBidder===state.seat&&tabletLayout);
   if(!show){current?.remove();return;}
   const min=s.highBid?(s.highBid<200?s.highBid+5:400):150;
   if(current?.dataset.min===String(min))return;
   current?.remove();
   const bar=document.createElement("div");
   bar.id="tabletBidBar";
+  bar.dataset.min=String(min);
   bar.className="tablet-bid-bar";
   const values=[];
   for(let bid=min;bid<=200;bid+=5)values.push(bid);
