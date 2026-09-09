@@ -514,15 +514,13 @@
 
     .avatar {
       flex: 0 0 auto;
-      width: 34px;
-      height: 34px;
-      display: grid;
-      place-items: center;
+      width: 39px;
+      height: 39px;
+      display: block;
       border-radius: 50%;
-      background: linear-gradient(145deg, rgba(255,255,255,.2), rgba(255,255,255,.05));
-      border: 1px solid rgba(255,255,255,.18);
-      font-weight: 900;
-      color: var(--gold);
+      object-fit: cover;
+      background: #deb44e;
+      border: 2px solid #deb44e;
     }
 
     .player-meta { min-width: 0; }
@@ -3641,14 +3639,19 @@
   .score-result-layout { grid-template-columns:1fr; }
 }
 </style>
+<style>
+/* Compact, no-scroll table layout after removing chat. */
+@media (min-width:761px) { html,body{height:100%;overflow:hidden}.app{height:100vh}.game-layout{min-height:0}.game-sidebar{min-height:0}.game-main{min-height:0}.table-shell{height:calc(100vh - 165px)!important;min-height:400px!important}.game-sidebar{grid-template-rows:auto 1fr auto!important}.sidebar-actions{margin-top:0!important} }
+@media (max-width:760px) and (orientation:landscape) { html,body{height:100%;overflow:hidden}.app{height:100vh}.topbar{min-height:46px!important;height:46px!important}.game-layout{grid-template-columns:155px minmax(0,1fr)!important;padding:4px!important}.game-sidebar{display:flex!important;min-height:0}.table-shell{height:calc(100vh - 105px)!important;min-height:300px!important}.sidebar-actions .btn{min-height:28px!important;font-size:9px!important} }
+</style>
 </head>
-<body data-theme="classic" data-version="1.1.39">
+<body data-theme="classic" data-version="1.1.40">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.39</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.40</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3663,15 +3666,14 @@
     <aside class="game-sidebar" aria-label="Game information">
       <section class="sidebar-panel bid-trump-panel"><div class="bid-trump-line"><span class="bid-inline"><span id="bidWinnerName">No bid</span><strong id="bidWinnerValue">-</strong></span><span class="trump-inline"><span class="trump-dot" id="trumpDot" hidden></span><span id="tableInfoText"></span></span></div><div class="bid-status-list" id="bidStatusList" hidden></div></section>
       <section class="scoreboard sidebar-scoreboard sidebar-panel"><div class="sidebar-heading">Score</div><div class="score-entries" id="scoreEntries"></div><div class="score-center"><strong id="handLabel">Waiting</strong><span id="targetLabel">First to 1000</span></div></section>
-      <section class="chat-panel"><div class="chat-heading">Chat</div><div class="chat-messages" id="chatMessages"></div><form class="chat-compose" id="chatForm"><input id="chatInput" maxlength="240" autocomplete="off" placeholder="Message..."><button class="btn small">Send</button></form></section>
       <div class="sidebar-actions"><button class="btn small" id="changePlayerButton">Player</button><button class="btn small" id="settingsButton">Settings</button><button class="btn" id="newGameButton">New Game</button><button class="btn danger" id="startButton">Start Game</button><button class="btn danger sidebar-go-down" id="goDownButton" hidden>Go Down</button></div>
     </aside>
 
     <div class="game-main">
       <section class="table-shell" id="tableShell" aria-label="3-Handed Judd Rook table">
-        <div class="player north" id="player2"><div class="avatar" id="avatar2">C</div><div class="player-meta"><div class="player-name" id="name2">Cindy</div><div class="player-detail" id="detail2"></div><div class="player-hand-points" id="handPoints2">0</div></div><div class="mini-cards" id="mini2"></div></div>
-        <div class="player west" id="player1"><div class="avatar" id="avatar1">C</div><div class="player-meta"><div class="player-name" id="name1">Cristi</div><div class="player-detail" id="detail1"></div><div class="player-hand-points" id="handPoints1">0</div></div><div class="mini-cards" id="mini1"></div></div>
-        <div class="player south" id="player0"><div class="avatar" id="avatar0">D</div><div class="player-meta"><div class="player-name" id="name0">Daryl</div><div class="player-detail" id="detail0"></div><div class="player-hand-points" id="handPoints0">0</div></div></div>
+        <div class="player north" id="player2"><img class="avatar" id="avatar2" src="/cindy-avatar.png" alt="Cindy"><div class="player-meta"><div class="player-name" id="name2">Cindy</div><div class="player-detail" id="detail2"></div><div class="player-hand-points" id="handPoints2">0</div></div><div class="mini-cards" id="mini2"></div></div>
+        <div class="player west" id="player1"><img class="avatar" id="avatar1" src="/cristi-avatar.png" alt="Cristi"><div class="player-meta"><div class="player-name" id="name1">Cristi</div><div class="player-detail" id="detail1"></div><div class="player-hand-points" id="handPoints1">0</div></div><div class="mini-cards" id="mini1"></div></div>
+        <div class="player south" id="player0"><img class="avatar" id="avatar0" src="/daryl-avatar.png" alt="Daryl"><div class="player-meta"><div class="player-name" id="name0">Daryl</div><div class="player-detail" id="detail0"></div><div class="player-hand-points" id="handPoints0">0</div></div></div>
         <div class="trick-area"><div class="play-slot north" id="slot2"></div><div class="play-slot west" id="slot1"></div><div class="play-slot south" id="slot0"></div></div>
         <div class="nest" id="nestDisplay"><div class="nest-stack"><div class="nest-card"></div><div class="nest-card"></div></div><div id="nestLabel">9-card kitty</div></div><div class="kitty-stage" id="kittyStage" hidden></div><div class="discard-selection-pile" id="discardSelectionPile" hidden aria-label="Cards selected for the kitty"></div>
         <div class="hand-zone"><div class="hand" id="humanHand"></div></div>
@@ -3690,7 +3692,7 @@ const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
 const els={
-  modalBackdrop:document.getElementById("modalBackdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast"),hand:document.getElementById("humanHand"),controls:document.getElementById("gameControls"),promptTitle:document.getElementById("promptTitle"),promptText:document.getElementById("promptText"),scoreEntries:document.getElementById("scoreEntries"),bidWinnerName:document.getElementById("bidWinnerName"),bidWinnerValue:document.getElementById("bidWinnerValue"),bidStatusList:document.getElementById("bidStatusList"),handLabel:document.getElementById("handLabel"),targetLabel:document.getElementById("targetLabel"),trumpDot:document.getElementById("trumpDot"),tableInfoText:document.getElementById("tableInfoText"),tableShell:document.getElementById("tableShell"),nestLabel:document.getElementById("nestLabel"),scoreHistoryList:document.getElementById("scoreHistoryList"),kittyStage:document.getElementById("kittyStage"),chatMessages:document.getElementById("chatMessages"),chatForm:document.getElementById("chatForm"),chatInput:document.getElementById("chatInput")
+  modalBackdrop:document.getElementById("modalBackdrop"),modal:document.getElementById("modal"),toast:document.getElementById("toast"),hand:document.getElementById("humanHand"),controls:document.getElementById("gameControls"),promptTitle:document.getElementById("promptTitle"),promptText:document.getElementById("promptText"),scoreEntries:document.getElementById("scoreEntries"),bidWinnerName:document.getElementById("bidWinnerName"),bidWinnerValue:document.getElementById("bidWinnerValue"),bidStatusList:document.getElementById("bidStatusList"),handLabel:document.getElementById("handLabel"),targetLabel:document.getElementById("targetLabel"),trumpDot:document.getElementById("trumpDot"),tableInfoText:document.getElementById("tableInfoText"),tableShell:document.getElementById("tableShell"),nestLabel:document.getElementById("nestLabel"),scoreHistoryList:document.getElementById("scoreHistoryList"),kittyStage:document.getElementById("kittyStage")
 };
 function escapeHtml(v){return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
 function showToast(t){els.toast.textContent=t;els.toast.classList.add("show");clearTimeout(showToast.t);showToast.t=setTimeout(()=>els.toast.classList.remove("show"),1900);}
@@ -3704,10 +3706,10 @@ function render(){const s=state.data;if(!s)return;
   if(!s.lastHandResult&&s.handNumber<=state.lastScorePopupHand)state.lastScorePopupHand=0;
   els.tableShell.dataset.playerCount="3";els.tableShell.classList.toggle("reveal-trick",s.phase==="trickReveal");
   if(!els.hand)return;els.hand.innerHTML="";const visibleHand=s.hands[state.seat]||[];const handZone=els.hand.parentElement;if(handZone)handZone.classList.toggle("expanded-hand",visibleHand.length>12);visibleHand.forEach((c,i)=>{const b=document.createElement("button");b.type="button";b.className=`card ${c.rook?"rook":c.suit}`;b.dataset.cardId=c.id;b.style.zIndex=String(i+1);b.innerHTML=cardInner(c);const active=s.phase==="playing"&&s.turn===state.seat;const discard=s.phase==="discard"&&s.highBidder===state.seat;const selected=(s.selectedDiscards||[]).includes(c.id);if(discard){b.classList.add("playable");b.classList.toggle("selected",selected);bindDiscardClicks(b,c);}else if(active){b.classList.add("playable");b.onclick=()=>send({action:"play",cardId:c.id});}else b.disabled=true;els.hand.appendChild(b);});
-  const showLeader=s.highBidder!==null&&["pickup","discard","playing","trickReveal"].includes(s.phase);for(let i=0;i<3;i++){const p=playerState(i);document.getElementById(`name${i}`).textContent=p?.name||["Daryl","Cristi","Cindy"][i];document.getElementById(`avatar${i}`).textContent=(p?.name||["Daryl","Cristi","Cindy"][i]).charAt(0);document.getElementById(`detail${i}`).textContent=p?.bot?"Bot":p?.connected?"Live":"Waiting";document.getElementById(`player${i}`).classList.toggle("active",(s.phase==="playing"&&s.turn===i)||(s.phase==="bidding"&&s.currentBidder===i));document.getElementById(`player${i}`).classList.toggle("leader",showLeader&&s.leader===i);document.getElementById(`player${i}`).classList.toggle("bid-winner",s.highBidder===i);const mini=document.getElementById(`mini${i}`);if(mini)mini.innerHTML="";for(let k=0;k<(s.handCounts[i]||0);k++){const x=document.createElement("span");x.className="mini-back";if(mini)mini.appendChild(x);}const pointsEl=document.getElementById(`handPoints${i}`);if(pointsEl)pointsEl.textContent=s.highBidder===i?`Bid ${s.highBid}`:`${s.scores[i]||0}`;}
+  const showLeader=s.highBidder!==null&&["pickup","discard","playing","trickReveal"].includes(s.phase);const avatarFiles={Daryl:"daryl-avatar.png",Cristi:"cristi-avatar.png",Cindy:"cindy-avatar.png"};for(let i=0;i<3;i++){const p=playerState(i);const name=p?.name||["Daryl","Cristi","Cindy"][i];document.getElementById(`name${i}`).textContent=name;const avatar=document.getElementById(`avatar${i}`);if(avatar){avatar.src=`/${avatarFiles[name]||"daryl-avatar.png"}`;avatar.alt=name;}document.getElementById(`detail${i}`).textContent=p?.bot?"Bot":p?.connected?"Live":"Waiting";document.getElementById(`player${i}`).classList.toggle("active",(s.phase==="playing"&&s.turn===i)||(s.phase==="bidding"&&s.currentBidder===i));document.getElementById(`player${i}`).classList.toggle("leader",showLeader&&s.leader===i);document.getElementById(`player${i}`).classList.toggle("bid-winner",s.highBidder===i);const mini=document.getElementById(`mini${i}`);if(mini)mini.innerHTML="";for(let k=0;k<(s.handCounts[i]||0);k++){const x=document.createElement("span");x.className="mini-back";if(mini)mini.appendChild(x);}const pointsEl=document.getElementById(`handPoints${i}`);if(pointsEl)pointsEl.textContent=s.highBidder===i?`Bid ${s.highBid}`:`${s.scores[i]||0}`;}
   for(let i=0;i<3;i++){const slot=document.getElementById(`slot${i}`);if(!slot)continue;const p=s.trick.find(x=>x.seat===i);slot.innerHTML=p?cardHtml(p.card,"played-card"):"";}
   els.bidWinnerName.textContent=s.highBidder===null?"No bid":playerState(s.highBidder)?.name||"Bidder";els.bidWinnerValue.textContent=s.highBid||"â€”";els.handLabel.textContent=s.handNumber?`Hand ${s.handNumber}`:"Waiting";els.targetLabel.textContent="First to 1000";els.nestLabel.textContent=`${s.kittyCount||0}-card kitty`;els.tableInfoText.textContent=s.trump?(s.trump==="none"?"No Trump":`${s.trump} trump`):"";els.trumpDot.hidden=!s.trump;els.trumpDot.style.background=s.trump&&s.trump!=="none"?`var(--${s.trump})`:"#777";if((s.phase==="scoring"||s.phase==="gameover")&&s.lastHandResult&&s.handNumber!==state.lastScorePopupHand){state.lastScorePopupHand=s.handNumber;showHandScorePopup(s);}
-  if(els.scoreEntries)els.scoreEntries.innerHTML=s.seats.map((p,i)=>`<div class="team-score"><div class="sidebar-score-name">${escapeHtml(p.name)}</div><div class="score-value-wrap"><div class="score-value">${s.scores[i]||0}</div></div></div>`).join("");els.promptTitle.textContent=s.prompt||"3-Handed Judd Rook";els.promptText.textContent=promptText(s);renderBidStatuses(s);syncTrumpAnnouncement(s);renderKittyStage(s);renderLastTrick(s);renderChat(s);renderControls();
+  if(els.scoreEntries)els.scoreEntries.innerHTML=s.seats.map((p,i)=>`<div class="team-score"><div class="sidebar-score-name">${escapeHtml(p.name)}</div><div class="score-value-wrap"><div class="score-value">${s.scores[i]||0}</div></div></div>`).join("");els.promptTitle.textContent=s.prompt||"3-Handed Judd Rook";els.promptText.textContent=promptText(s);renderBidStatuses(s);syncTrumpAnnouncement(s);renderKittyStage(s);renderLastTrick(s);renderControls();
 }
 function renderBidStatuses(s){if(!els.bidStatusList)return;const visible=s.phase==="bidding";els.bidStatusList.hidden=!visible;if(!visible){els.bidStatusList.innerHTML="";return;}const latest=[null,null,null];for(const entry of s.bidHistory||[])latest[entry.seat]=entry;els.bidStatusList.innerHTML=(s.seats||[]).map((player,seat)=>{const entry=latest[seat],passed=!!s.passed?.[seat]||entry?.passed;let status=passed?"Passed":typeof entry?.bid==="number"?`Bid ${entry.bid}`:s.currentBidder===seat?"Choosing…":"Still bidding";return `<div class="bid-status-row ${passed?"passed":""} ${s.currentBidder===seat?"active":""}"><span>${escapeHtml(player.name)}</span><strong>${status}</strong></div>`;}).join("");}
 function clearTrumpOverlays(){clearTimeout(state.trumpNoticeTimer);state.trumpNoticeTimer=null;document.getElementById("trumpAnnouncement")?.remove();document.getElementById("trumpPickerBar")?.remove();}
@@ -3775,8 +3777,6 @@ function openSettings(){
   document.getElementById("cancelSettings").onclick=closeModal;
   document.getElementById("saveSettings").onclick=()=>{const read=id=>document.getElementById(id);const chosen=els.modal.querySelector('input[name="themeSetting"]:checked').value;const next={theme:chosen,rookRank:read("rookRankSetting").value,bidStart:read("bidStartSetting").value,allowNoTrump:read("allowNoTrumpSetting").checked,soundEnabled:read("soundEnabledSetting").checked,showStats:read("showStatsSetting").checked,biddingEnabled:read("biddingEnabledSetting").checked,aiDifficulty:read("aiDifficultySetting").value,botSpeed:read("botSpeedSetting").value,winScore:read("winScoreSetting").value,userName:read("userNameSetting").value.trim(),bot1:read("bot1Setting").value.trim(),bot2:read("bot2Setting").value.trim()};localStorage.setItem(key,JSON.stringify(next));localStorage.setItem("juddRookTheme",chosen);document.body.dataset.theme=chosen;closeModal();showToast("Settings saved");};
 }
-const chatPanel=document.querySelector(".chat-panel");
-if(chatPanel){const side=document.querySelector(".game-sidebar"),actions=side?.querySelector(".sidebar-actions");if(side&&actions)side.insertBefore(chatPanel,actions);}
 const savedTheme=localStorage.getItem("juddRookTheme");if(savedTheme)document.body.dataset.theme=savedTheme;
 const renderGame=render;
 render=function(){renderGame();if(els.bidWinnerValue.textContent==="â€”")els.bidWinnerValue.textContent="-";};
@@ -3845,7 +3845,6 @@ const showScorePopupWithClaimReveal=showHandScorePopup;
 showHandScorePopup=function(s){showScorePopupWithClaimReveal(s);if(!Array.isArray(s.claimReveal)||!s.claimReveal.length)return;els.modal.className="modal hand-score-modal";const actions=els.modal.querySelector(".modal-actions"),layout=document.createElement("div"),summary=document.createElement("section"),reveal=document.createElement("section");layout.className="score-result-layout";summary.className="score-result-summary";reveal.className="claim-reveal";const heading=s.lastHandResult?.wentDown?"Remaining Cards — Hand Ended":"Remaining Cards — Claimed by "+escapeHtml(playerState(s.highBidder)?.name||"Bidder");reveal.innerHTML=`<h3>${heading}</h3>${s.claimReveal.map((hand,seat)=>`<div class="claim-reveal-row"><strong>${escapeHtml(playerState(seat)?.name||"")}</strong><div class="claim-reveal-cards">${hand.map(card=>cardHtml(card)).join("")}</div></div>`).join("")}`;[...els.modal.children].filter(node=>node!==actions).forEach(node=>summary.appendChild(node));layout.append(summary,reveal);els.modal.insertBefore(layout,actions);};
 const renderWithHandPoints=render;
 render=function(){renderWithHandPoints();const s=state.data;if(!s)return;const bidderSet=bidderIsCurrentlySet(s);for(let i=0;i<3;i++){const points=document.getElementById(`handPoints${i}`);if(points){points.textContent=`${s.handPoints?.[i]||0}`;points.classList.toggle("set",bidderSet&&i===s.highBidder);}}if(s.canRedeal&&state.lastMisdealHand!==s.handNumber){state.lastMisdealHand=s.handNumber;const hand=s.hands[state.seat]||[];openModal(`<h2>Misdeal</h2><p class="table-dialog-summary">Your hand has no point cards. You may request a redeal before bidding begins.</p><div class="misdeal-hand">${hand.map(card=>cardHtml(card)).join("")}</div><div class="modal-actions"><button class="btn primary" id="misdealRedeal">Re-Deal</button></div>`);document.getElementById("misdealRedeal").onclick=async()=>{await send({action:"redeal"});closeModal();};}};
-els.chatForm.addEventListener("submit",async e=>{e.preventDefault();const text=els.chatInput.value.trim();if(!text)return;els.chatInput.value="";await send({action:"chat",text});});
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
