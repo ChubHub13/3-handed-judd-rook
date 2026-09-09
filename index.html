@@ -3848,12 +3848,12 @@ render=function(){renderWithHandPoints();const s=state.data;if(!s)return;const b
 document.getElementById("changePlayerButton").onclick=choosePlayer;document.getElementById("settingsButton").onclick=openSettings;document.getElementById("newGameButton").onclick=()=>{if(state.token)send({action:"newGame"});else choosePlayer();};document.getElementById("startButton").onclick=()=>{if(state.token)send({action:"start"});else choosePlayer();};document.getElementById("goDownButton").onclick=()=>send({action:"goDown"});els.modalBackdrop.addEventListener("click",e=>{if(e.target===els.modalBackdrop)closeModal();});
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;startPolling();}else{choosePlayer();}})();
 </script>
-  <script src="game-night-return.js"></script>
 <script>
 (() => {
   const params = new URLSearchParams(location.search);
-  const gameNight = params.get("gameNight");
-  if (!gameNight) return;
+  const hashParams = new URLSearchParams(location.hash.replace(/^#\??/, ""));
+  const gameNight = params.get("gameNight") || hashParams.get("gameNight") || "https://judd-game-night.onrender.com/";
+  if (document.getElementById("gameNightReturn")) return;
 
   const style = document.createElement("style");
   style.textContent = `
@@ -3876,7 +3876,7 @@ document.getElementById("changePlayerButton").onclick=choosePlayer;document.getE
   button.onclick = () => location.assign(gameNight);
   document.body.append(button);
 
-  if (params.get("gameNightNew") === "1") {
+  if ((params.get("gameNightNew") || hashParams.get("gameNightNew")) === "1") {
     window.setTimeout(() => document.getElementById("newGameButton")?.click(), 800);
   }
 })();
