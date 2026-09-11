@@ -527,6 +527,10 @@
     .avatar.guest-avatar { font-size: 21px; }
     .name-edit { display:inline-grid; place-items:center; width:16px; height:16px; margin-left:3px; padding:0; border:0; border-radius:50%; color:var(--gold); background:rgba(255,255,255,.12); font:900 11px/1 system-ui,sans-serif; vertical-align:1px; cursor:pointer; }
     .name-edit:hover { background:rgba(242,195,94,.3); }
+    .join-seat { display:grid; grid-template-columns:minmax(0,1fr) 27px; gap:5px; align-items:stretch; }
+    .join-seat .join-choice { min-width:0; }
+    .join-name-edit { border:2px solid rgba(255,255,255,.12); border-radius:10px; color:var(--gold); background:rgba(0,0,0,.16); font:900 15px/1 system-ui,sans-serif; cursor:pointer; }
+    .join-name-edit:hover { background:rgba(242,195,94,.18); }
 
     .player-meta { min-width: 0; }
     .player-name { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3650,13 +3654,13 @@
 @media (max-width:760px) and (orientation:landscape) { html,body{height:100%;overflow:hidden}.app{height:100vh}.topbar{min-height:46px!important;height:46px!important}.game-layout{grid-template-columns:155px minmax(0,1fr)!important;padding:4px!important}.game-sidebar{display:flex!important;min-height:0}.table-shell{height:calc(100vh - 105px)!important;min-height:300px!important}.sidebar-actions .btn{min-height:28px!important;font-size:9px!important} }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.42">
+<body data-theme="classic" data-version="1.1.43">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.42</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.43</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3692,7 +3696,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.42";
+const APP_VERSION="1.1.43";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
@@ -3730,10 +3734,12 @@ function bidderIsCurrentlySet(s){if(!s||s.highBidder===null||!s.highBid)return f
 function showHandScorePopup(s){const r=s.lastHandResult;if(!r)return;const bidder=playerState(s.highBidder)?.name||"Bidder";const defenders=(s.defenders||[]).map(i=>playerState(i)?.name||["Daryl","Cristi","Cindy"][i]);const bidderChange=r.bidMade?r.bidderPoints:-r.bid;const defenderRows=(r.defenderShares||[]).map(x=>`<div class="summary-card"><strong>${escapeHtml(x.name)}</strong><div class="big">+${x.points}</div><span>Shared defender points</span></div>`).join("");const final=s.phase==="gameover"?`<p class="table-dialog-summary final-score"><strong>${escapeHtml(playerState(s.winner)?.name||"Winner")} wins!</strong><br>${(s.seats||[]).map((p,i)=>`${escapeHtml(p.name)} ${s.scores?.[i]||0}`).join(" • ")}</p>`:"";openModal(`<h2>${s.phase==="gameover"?"Game Over":`Hand ${s.handNumber} Complete`}</h2><p class="table-dialog-summary">${escapeHtml(bidder)} bid ${r.bid} and ${r.bidMade?`captured ${r.bidderPoints} points.`:`was set and loses ${r.bid} points.`}</p>${final}<div class="summary-grid"><div class="summary-card"><strong>${escapeHtml(bidder)}</strong><div class="big">${bidderChange>0?"+":""}${bidderChange}</div><span>${r.bidderPoints} points captured â€¢ Bid ${r.bid}</span></div>${defenderRows}</div><p class="table-dialog-summary"><strong>Defenders shared ${r.defenderTotal} points.</strong></p><div class="modal-actions">${s.phase==="gameover"?`<button class="btn primary" id="scorePopupNew">Play Again</button>`:`<button class="btn primary" id="scorePopupNext">Deal Next Hand</button>`}</div>`);if(s.phase==="gameover")launchConfetti();const next=document.getElementById("scorePopupNext");if(next)next.onclick=()=>{closeModal();send({action:"nextHand"});};const again=document.getElementById("scorePopupNew");if(again)again.onclick=()=>{closeModal();send({action:"newGame"});};}
 function launchConfetti(){const colors=["#e54d42","#f4c84a","#39a96b","#f7f0cf"];for(let i=0;i<70;i++){const piece=document.createElement("div");piece.className="confetti";piece.style.left=`${Math.random()*100}vw`;piece.style.background=colors[i%colors.length];piece.style.animationDelay=`${Math.random()*.8}s`;piece.style.transform=`rotate(${Math.random()*360}deg)`;document.body.appendChild(piece);setTimeout(()=>piece.remove(),3800);}}
 function editPlayerName(currentName){const name=window.prompt("Name for this game:",currentName);if(name===null)return;if(!name.trim()){showToast("Enter a name for this game.");return;}send({action:"rename",name});}
-function choosePlayer(){const choices=["Daryl","Cristi","Cindy"];openModal(`<h2>Choose Player</h2><div class="join-grid" style="grid-template-columns:repeat(3,1fr)">${choices.map(name=>`<button class="join-choice" data-name="${name}">${name}</button>`).join("")}</div>`);els.modal.querySelectorAll("[data-name]").forEach(b=>b.onclick=async()=>{const name=b.dataset.name;try{const d=await api("/api/join",{method:"POST",body:JSON.stringify({name,token:state.token})});state.token=d.token;state.name=d.name;state.seat=d.seat;localStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,name:state.name,seat:state.seat}));state.data=d.state;closeModal();startPolling();render();}catch(e){showToast(e.message);}});}
+async function joinPlayer(player,displayName){try{const d=await api("/api/join",{method:"POST",body:JSON.stringify({name:player,token:state.token,...(displayName?{displayName}:{})})});state.token=d.token;state.name=d.name;state.seat=d.seat;localStorage.setItem(SESSION_KEY,JSON.stringify({token:state.token,name:state.name,seat:state.seat}));state.data=d.state;closeModal();startPolling();render();}catch(e){showToast(e.message);}}
+function promptJoinName(player){const name=window.prompt(`Name for ${player}'s seat:`,"");if(name===null)return;if(!name.trim()){showToast("Enter a name for this game.");return;}joinPlayer(player,name);}
+function choosePlayer(){const choices=["Daryl","Cristi","Cindy"];openModal(`<h2>Choose Player</h2><p class="table-dialog-summary">Tap a name to use that seat, or tap ✎ to use it with a session name.</p><div class="join-grid" style="grid-template-columns:repeat(3,1fr)">${choices.map(name=>`<div class="join-seat"><button class="join-choice" data-name="${name}">${name}</button><button class="join-name-edit" data-edit-name="${name}" type="button" aria-label="Use ${name}'s seat with another name">✎</button></div>`).join("")}</div>`);els.modal.querySelectorAll("[data-name]").forEach(button=>button.onclick=()=>joinPlayer(button.dataset.name));els.modal.querySelectorAll("[data-edit-name]").forEach(button=>button.onclick=()=>promptJoinName(button.dataset.editName));}
 function openTrumpPicker(){const s=state.data;if(!s||s.phase!=="pickup"||s.highBidder!==state.seat||!s.kittyAccepted){showToast("Accept the kitty before choosing trump.");return;}const choices=["red","yellow","green","black","none"];openModal(`<h2>Choose Trump</h2><p class="autotrump-note">Choose Red, Yellow, Green, Black, or No Trump.</p><div class="color-choices">${choices.map(x=>`<button class="color-choice ${x==="none"?"no-trump":x}" data-trump="${x}">${x==="none"?"No Trump":x[0].toUpperCase()+x.slice(1)}</button>`).join("")}</div>`);els.modal.querySelectorAll("[data-trump]").forEach(b=>b.onclick=async()=>{try{const d=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,action:"trump",trump:b.dataset.trump})});state.data=d.state;closeModal();render();}catch(e){showToast(e.message);}});}
 async function send(action){try{const d=await api("/api/action",{method:"POST",body:JSON.stringify({token:state.token,...action})});state.data=d.state;render();}catch(e){showToast(e.message);}}
-async function poll(){if(!state.token)return;try{const d=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=d.state;render();}catch(e){showToast(e.message);clearInterval(state.poll);clearInterval(state.heartbeat);}}
+async function poll(){if(!state.token)return;try{const d=await api(`/api/state?token=${encodeURIComponent(state.token)}`);state.data=d.state;render();}catch(e){clearInterval(state.poll);clearInterval(state.heartbeat);localStorage.removeItem(SESSION_KEY);state.token=null;state.name=null;state.seat=null;state.data=null;choosePlayer();showToast("Choose a player to rejoin.");}}
 async function heartbeat(){if(!state.token)return;try{await api("/api/heartbeat",{method:"POST",body:JSON.stringify({token:state.token})});}catch(e){}}
 function startPolling(){clearInterval(state.poll);clearInterval(state.heartbeat);state.poll=setInterval(poll,600);state.heartbeat=setInterval(heartbeat,2200);poll();}
 const showModal=openModal;
