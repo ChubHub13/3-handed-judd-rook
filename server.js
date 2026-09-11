@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.39';
+const VERSION = '1.1.42';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -20,11 +20,13 @@ const TRUMP_REVEAL_MS = 5000;
 const BOT_DELAY = { bid: 650, play: 550, trick: 850 };
 
 const sessions = new Map();
+const seatNames = [...PLAYER_NAMES];
 let botTimer = null;
 let revealTimer = null;
 
 function makeId(prefix = '') { return prefix + crypto.randomBytes(10).toString('hex'); }
 function cleanName(value) { const v = String(value || '').trim(); return PLAYER_NAMES.includes(v) ? v : null; }
+function cleanDisplayName(value) { const name = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 20); return name || null; }
 function now() { return Date.now(); }
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 
@@ -97,7 +99,7 @@ function effectiveSuit(card) {
   return game.trump === 'none' ? 'red' : game.trump;
 }
 function cardName(card) { return card.rook ? 'the Rook' : `${card.suit} ${card.value}`; }
-function playerName(seat) { return PLAYER_NAMES[seat]; }
+function playerName(seat) { return seatNames[seat] || PLAYER_NAMES[seat] || 'Player'; }
 
 function sortHand(hand) {
   const suitOrder = { red: 0, yellow: 1, green: 2, black: 3, rook: 4 };
@@ -973,7 +975,7 @@ function publicState(seat) {
     tricksWon: game.tricksWon,
     lastHandResult: game.lastHandResult,
     defenders: game.highBidder === null ? [] : [0,1,2].filter(i => i !== game.highBidder),
-    seats: PLAYER_NAMES.map((name, i) => ({ seat: i, name, connected: game.live[i], bot: game.bot[i] })),
+    seats: PLAYER_NAMES.map((name, i) => ({ seat: i, name: playerName(i), connected: game.live[i], bot: game.bot[i] })),
     chat: game.chat,
     winner: game.winner,
     canClaimRest: canClaimRest(seat),
@@ -983,7 +985,11 @@ function publicState(seat) {
     canRedeal: game.phase === 'bidding' && !game.highBid && game.misdealSeats.includes(seat),
   };
 }
-function getSession(token) { return sessions.get(String(token || '')) || null; }
+function getSession(token) {
+  const session = sessions.get(String(token || '')) || null;
+  if (session) seatNames[session.seat] = session.name;
+  return session;
+}
 function refreshLive() {
   const cutoff = now() - PLAYER_TIMEOUT_MS;
   for (let i = 0; i < 3; i++) {
@@ -1012,14 +1018,16 @@ async function api(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' }); res.end(); return true; }
   if (req.method === 'POST' && req.url === '/api/join') {
     const data = await readJson(req);
-    const name = cleanName(data.name);
-    if (!name) return json(res, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
-    let seat = PLAYER_NAMES.indexOf(name);
+    const selectedName = cleanName(data.name);
     const current = sessions.get(data.token || '');
-    if (current && current.name === name) seat = current.seat;
+    if (!selectedName) return json(res, 400, { ok: false, message: 'Choose Daryl, Cristi, or Cindy.' });
+    const seat = PLAYER_NAMES.indexOf(selectedName);
+    if (game.live[seat] && current?.seat !== seat) return json(res, 409, { ok: false, message: `${playerName(seat)} is already playing on another device.` });
+    const name = current?.seat === seat ? current.name : PLAYER_NAMES[seat];
     game.live[seat] = true; game.bot[seat] = false; game.lastSeen[seat] = now(); game.humanSeatsThisHand[seat] = true;
-    const token = current?.token || makeId('s_');
+    const token = current?.seat === seat ? current.token : makeId('s_');
     sessions.set(token, { token, name, seat });
+    seatNames[seat] = name;
     if (game.started && game.bot[seat]) game.bot[seat] = false;
     return json(res, 200, { ok: true, token, name, seat, state: publicState(seat) });
   }
@@ -1041,7 +1049,13 @@ async function api(req, res) {
     if (!s) return json(res, 401, { ok: false, message: 'Session expired.' });
     game.live[s.seat] = true; game.bot[s.seat] = false; game.lastSeen[s.seat] = now();
     let ok = true;
-    if (data.action === 'start') beginGame();
+    if (data.action === 'rename') {
+      const name = cleanDisplayName(data.name);
+      if (!name) return json(res, 400, { ok: false, message: 'Enter a name for this game.' });
+      s.name = name;
+      seatNames[s.seat] = name;
+    }
+    else if (data.action === 'start') beginGame();
     else if (data.action === 'bitterBunch') ok = voteBitterBunch(s.seat);
     else if (data.action === 'redeal') ok = redealMisdeal(s.seat);
     else if (data.action === 'bid') {
