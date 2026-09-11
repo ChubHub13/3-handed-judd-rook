@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const HOST = process.env.HOST || '0.0.0.0';
 const PUBLIC_DIR = __dirname;
-const VERSION = '1.1.43';
+const VERSION = '1.1.44';
 const PLAYER_NAMES = ['Daryl', 'Cristi', 'Cindy'];
 const SUITS = ['red', 'yellow', 'green', 'black'];
 const VALUES = [1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
@@ -1087,7 +1087,11 @@ const server = http.createServer(async (req, res) => {
   try {
     const handled = await api(req, res);
     if (handled) return;
-    const requestPath = req.url === '/' ? '/index.html' : req.url.split('?')[0];
+    // Strip the query before deciding whether this is the home page.  Game
+    // Night opens Rook as `/?gameNight=...`, which must serve index.html just
+    // like `/` rather than resolving the public directory itself.
+    const pathname = req.url.split('?')[0];
+    const requestPath = pathname === '/' ? '/index.html' : pathname;
     const relative = path.normalize(requestPath).replace(/^[/\\]+/, '');
     const filePath = path.join(PUBLIC_DIR, relative);
     if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); res.end('Forbidden'); return; }
