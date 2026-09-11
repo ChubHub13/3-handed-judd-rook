@@ -3645,31 +3645,31 @@
 @media (max-width:760px) and (orientation:landscape) { html,body{height:100%;overflow:hidden}.app{height:100vh}.topbar{min-height:46px!important;height:46px!important}.game-layout{grid-template-columns:155px minmax(0,1fr)!important;padding:4px!important}.game-sidebar{display:flex!important;min-height:0}.table-shell{height:calc(100vh - 105px)!important;min-height:300px!important}.sidebar-actions .btn{min-height:28px!important;font-size:9px!important} }
 </style>
 <style>
-/* Tablet bidding stays above the table, rather than below the cards. */
-.tablet-bid-bar { display:none; }
-@media (max-width:1100px), (pointer:coarse) {
-  .tablet-bid-bar { position:absolute; z-index:75; left:50%; top:auto; bottom:calc(var(--card-h) + 64px); transform:translateX(-50%); display:flex; align-items:center; justify-content:center; gap:7px; min-width:270px; padding:9px 11px; border:1px solid rgba(242,195,94,.68); border-radius:13px; background:rgba(9,30,22,.98); box-shadow:0 12px 30px rgba(0,0,0,.48); pointer-events:auto; }
-  .tablet-bid-bar label { color:var(--gold); font-size:11px; font-weight:900; white-space:nowrap; }
-  .tablet-bid-bar .bid-value-input { width:78px; min-height:38px; }
-  .tablet-bid-bar .btn { min-width:66px; min-height:38px; padding:6px 9px; }
+/* Reserve a dedicated, always-visible row below the table for game actions. */
+@media (min-width:761px) and (max-width:1200px) {
+  #tabletBidBar, .tablet-bid-bar { display:none !important; }
+  .game-main { grid-template-rows:minmax(0,1fr) 56px !important; gap:6px !important; }
+  .table-shell { height:auto !important; min-height:400px !important; }
+  .control-panel { display:grid !important; min-height:56px !important; height:56px !important; padding:6px 10px !important; overflow:visible !important; }
+  .game-controls { display:flex !important; align-items:center; justify-content:center; flex-wrap:nowrap; gap:7px; overflow-x:auto; }
+  .game-controls .bid-value-input { width:82px; min-width:82px; min-height:38px; }
+  .game-controls .btn { min-width:84px; min-height:38px; }
 }
 @media (max-width:760px) and (orientation:landscape) {
-  .tablet-bid-bar { top:auto; bottom:96px; min-width:236px; padding:6px 8px; gap:5px; }
-  .tablet-bid-bar label { font-size:9px; }
-  .tablet-bid-bar .bid-value-input, .tablet-bid-bar .btn { min-height:30px; font-size:10px; }
-  .tablet-bid-bar .bid-value-input { width:62px; }
-  .tablet-bid-bar .btn { min-width:52px; padding:4px 6px; }
+  .game-main { grid-template-rows:minmax(0,1fr) 42px !important; }
+  .table-shell { height:auto !important; min-height:0 !important; }
+  .control-panel { display:grid !important; overflow:visible !important; }
 }
 #gameNightReturn { z-index:10000 !important; pointer-events:auto !important; }
 </style>
 </head>
-<body data-theme="classic" data-version="1.1.43">
+<body data-theme="classic" data-version="1.1.45">
 <main class="app">
   <header class="topbar">
     <div class="brand">
       <div class="brand-mark">R</div>
       <div class="brand-copy">
-        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.43</span></div>
+        <div class="brand-title-row"><h1>3-HANDED JUDD ROOK</h1><span class="version-badge">v1.1.45</span></div>
         <p>Daryl &bull; Cristi &bull; Cindy &bull; fixed hands &bull; bot fallback</p>
       </div>
     </div>
@@ -3705,7 +3705,7 @@
 <div class="modal-backdrop" id="modalBackdrop"><div class="modal" id="modal"></div></div>
 <script>
 "use strict";
-const APP_VERSION="1.1.43";
+const APP_VERSION="1.1.45";
 const API="";
 const SESSION_KEY="juddRookFixedPlayerV1";
 const state={token:null,name:null,seat:null,data:null,poll:null,heartbeat:null,lastAutoTrumpHand:0,lastScorePopupHand:0,bidDraft:null,lastObservedTrump:null,lastObservedTrumpHand:0,trumpNoticeTimer:null};
@@ -3868,31 +3868,6 @@ document.getElementById("settingsButton").onclick=openSettings;document.getEleme
 // is retained only to let that same choice rejoin cleanly after a refresh.
 (function boot(){const saved=JSON.parse(localStorage.getItem(SESSION_KEY)||"null");if(saved?.token){state.token=saved.token;state.name=saved.name;state.seat=saved.seat;}choosePlayer();})();
 
-function renderTabletBidBar(){
-  const current=document.getElementById("tabletBidBar"),s=state.data;
-  const tabletLayout=matchMedia("(max-width: 1100px), (pointer: coarse)").matches;
-  const show=!!(s&&s.phase==="bidding"&&s.currentBidder===state.seat&&tabletLayout);
-  if(!show){current?.remove();return;}
-  const min=s.highBid?(s.highBid<200?s.highBid+5:400):150;
-  if(current?.dataset.min===String(min))return;
-  current?.remove();
-  const bar=document.createElement("div");
-  bar.id="tabletBidBar";
-  bar.dataset.min=String(min);
-  bar.className="tablet-bid-bar";
-  const values=[];
-  for(let bid=min;bid<=200;bid+=5)values.push(bid);
-  if(min<=400&&!values.includes(400))values.push(400);
-  bar.innerHTML=`<label for="tabletBidValue">Your bid</label><select id="tabletBidValue" class="bid-value-input">${values.map(value=>`<option value="${value}">${value}</option>`).join("")}</select><button type="button" class="btn primary">Bid</button><button type="button" class="btn">Pass</button>`;
-  const select=bar.querySelector("select");
-  if(values.includes(Number(state.bidDraft)))select.value=String(state.bidDraft);
-  select.onchange=()=>{state.bidDraft=select.value;};
-  bar.querySelector(".primary").onclick=async()=>{state.bidDraft=null;await send({action:"bid",bid:Number(select.value)});};
-  bar.querySelectorAll(".btn")[1].onclick=()=>send({action:"pass"});
-  els.tableShell.append(bar);
-}
-const renderWithTabletBidBar=render;
-render=function(){renderWithTabletBidBar();renderTabletBidBar();};
 </script>
 <script>
 (() => {
